@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>決策執行儀表板</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#080c14;--s1:#0f1420;--s2:#161d2e;--s3:#1d263d;--s4:#243047;
+  --border:#1e2a42;--border2:#2a3858;
+  --blue:#3b82f6;--blue2:#60a5fa;--green:#10b981;--green2:#34d399;
+  --amber:#f59e0b;--amber2:#fbbf24;--red:#ef4444;--red2:#f87171;
+  --purple:#8b5cf6;--purple2:#a78bfa;--cyan:#06b6d4;--cyan2:#22d3ee;
+  --pink:#ec4899;--pink2:#f472b6;
+  --text:#f1f5f9;--t2:#94a3b8;--t3:#475569;--t4:#1e293b;
+  --font:'Noto Sans TC',sans-serif;--mono:'DM Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;overflow:hidden}
+
+/* ── Shell ── */
+.app{display:grid;grid-template-rows:56px 1fr;height:100vh}
+
+/* ── Top bar ── */
+.topbar{background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;position:relative;z-index:10}
+.tb-logo{display:flex;align-items:center;gap:10px;margin-right:8px}
+.tb-logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--blue),var(--cyan));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.tb-title{font-size:14px;font-weight:900;letter-spacing:-.3px}
+.tb-nav{display:flex;gap:2px;flex:1}
+.tb-btn{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);color:var(--t2);background:transparent;transition:all .2s;display:flex;align-items:center;gap:6px}
+.tb-btn:hover{color:var(--text);background:var(--s2)}
+.tb-btn.active{color:#fff;background:var(--blue)}
+.tb-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.period-select{background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 9px;font-size:12px;font-family:var(--mono);outline:none}
+.tb-date{font-size:11px;color:var(--t3);font-family:var(--mono)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+
+/* ── Main content ── */
+.content{overflow-y:auto;overflow-x:hidden}
+.page{display:none;padding:20px 24px;animation:fadeIn .2s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── KPI Cards ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;margin-bottom:18px}
+.kpi{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:13px 14px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.kpi:hover{border-color:var(--border2);transform:translateY(-1px)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:10px 10px 0 0}
+.kpi.blue::before{background:var(--blue)}.kpi.green::before{background:var(--green)}
+.kpi.amber::before{background:var(--amber)}.kpi.red::before{background:var(--red)}
+.kpi.purple::before{background:var(--purple)}.kpi.cyan::before{background:var(--cyan)}
+.kpi.pink::before{background:var(--pink)}
+.kpi-icon{font-size:16px;margin-bottom:6px}
+.kpi-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
+.kpi-val{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
+.kpi-sub{font-size:10px;margin-top:4px;display:flex;align-items:center;gap:3px}
+.kpi-delta{font-family:var(--mono)}
+.up{color:var(--green)}.down{color:var(--red)}.flat{color:var(--t3)}
+
+/* ── Section grid ── */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.dash-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.dash-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+.col-span2{grid-column:span 2}
+.col-span3{grid-column:span 3}
+
+/* ── Cards ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:11px;overflow:hidden}
+.card-hdr{padding:11px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.9px;display:flex;align-items:center;gap:6px}
+.card-body{padding:13px 15px}
+.card-actions{display:flex;gap:5px}
+
+/* ── Charts ── */
+.chart-wrap{position:relative}
+.chart-wrap canvas{max-width:100%}
+
+/* ── Progress bars ── */
+.pbar{height:6px;background:var(--s3);border-radius:3px;overflow:hidden;margin-top:4px}
+.pfill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.pfill-blue{background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.pfill-green{background:linear-gradient(90deg,var(--green),var(--green2))}
+.pfill-amber{background:linear-gradient(90deg,var(--amber),var(--amber2))}
+.pfill-red{background:linear-gradient(90deg,var(--red),var(--red2))}
+.pfill-purple{background:linear-gradient(90deg,var(--purple),var(--purple2))}
+
+/* ── Tables ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:var(--s2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.7px;white-space:nowrap}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.015)}
+.mono{font-family:var(--mono)}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.b-green{background:rgba(16,185,129,.12);color:var(--green2)}
+.b-amber{background:rgba(245,158,11,.12);color:var(--amber2)}
+.b-red{background:rgba(239,68,68,.12);color:var(--red2)}
+.b-blue{background:rgba(59,130,246,.12);color:var(--blue2)}
+.b-purple{background:rgba(139,92,246,.12);color:var(--purple2)}
+
+/* ── Alert banners ── */
+.alert{display:flex;align-items:flex-start;gap:8px;padding:9px 13px;border-radius:8px;font-size:11px;margin-bottom:6px}
+.alert:last-child{margin-bottom:0}
+.alert-icon{font-size:14px;flex-shrink:0}
+.alert-green{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:var(--green2)}
+.alert-amber{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:var(--amber2)}
+.alert-red{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--red2)}
+.alert-blue{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:var(--blue2)}
+
+/* ── Metric rows ── */
+.metric-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.metric-row:last-child{border-bottom:none}
+.metric-lbl{font-size:12px;color:var(--t2)}
+.metric-val{font-size:13px;font-weight:700;font-family:var(--mono)}
+.metric-bar-row{padding:7px 0;border-bottom:1px solid var(--border)}
+.metric-bar-row:last-child{border-bottom:none}
+.metric-bar-top{display:flex;justify-content:space-between;margin-bottom:4px}
+.metric-bar-lbl{font-size:11px;color:var(--t2)}
+.metric-bar-pct{font-size:11px;font-family:var(--mono)}
+
+/* ── Channel contribution ── */
+.contrib-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.contrib-item:last-child{border-bottom:none}
+.contrib-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.contrib-name{flex:1;font-size:12px}
+.contrib-bar-wrap{width:100px;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.contrib-bar{height:100%;border-radius:3px}
+.contrib-val{font-size:12px;font-family:var(--mono);min-width:55px;text-align:right}
+.contrib-margin{font-size:11px;font-family:var(--mono);min-width:40px;text-align:right}
+
+/* ── Cashflow timeline ── */
+.cf-row{display:grid;grid-template-columns:50px repeat(6,1fr);gap:0;border-bottom:1px solid var(--border)}
+.cf-row:last-child{border-bottom:none}
+.cf-cell{padding:6px 8px;font-size:11px;font-family:var(--mono);text-align:right}
+.cf-lbl{font-size:11px;color:var(--t2);text-align:left;font-family:var(--font)}
+.cf-positive{color:var(--green2)}.cf-negative{color:var(--red2)}.cf-total{font-weight:700;color:var(--blue2)}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── Responsive ── */
+@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(4,1fr)}.dash-grid-3{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--font);transition:all .2s;white-space:nowrap}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-outline{background:transparent;color:var(--t2);border:1px solid var(--border)}.btn-outline:hover{border-color:var(--blue);color:var(--blue2)}
+.btn-ghost{background:transparent;color:var(--t3);border:none;font-size:11px;padding:3px 6px}
+.btn-ghost:hover{color:var(--text)}
+
+/* ── Drill-down modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;backdrop-filter:blur(3px)}
+.modal-overlay.open{display:flex;align-items:center;justify-content:center}
+.modal{background:var(--s1);border:1px solid var(--border2);border-radius:14px;width:min(900px,95vw);max-height:85vh;overflow:hidden;display:flex;flex-direction:column;animation:modalIn .2s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+.modal-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-title{font-size:15px;font-weight:700}
+.modal-body{overflow-y:auto;padding:20px;flex:1}
+.modal-close{background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:18px;padding:2px 6px}.modal-close:hover{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── TOP BAR ── -->
+<div class="topbar">
+  <div class="tb-logo">
+    <div class="tb-logo-icon">📊</div>
+    <div>
+      <div class="tb-title">決策執行儀表板</div>
+    </div>
+  </div>
+
+  <div class="tb-nav">
+    <button class="tb-btn active" onclick="goto('overview')">🏠 總覽</button>
+    <button class="tb-btn" onclick="goto('sales')">📦 產銷</button>
+    <button class="tb-btn" onclick="goto('production')">⚙ 生產</button>
+    <button class="tb-btn" onclick="goto('procurement')">🛒 採購</button>
+    <button class="tb-btn" onclick="goto('finance')">💰 財務</button>
+  </div>
+
+  <div class="tb-right">
+    <div class="status-dot"></div>
+    <select class="period-select" id="periodSelect" onchange="changePeriod()">
+      <option value="2026-01">2026年 1月</option>
+      <option value="2026-02">2026年 2月</option>
+      <option value="2026-03" selected>2026年 3月</option>
+      <option value="2026-04">2026年 4月</option>
+      <option value="2026-05">2026年 5月</option>
+      <option value="2026-06">2026年 6月</option>
+    </select>
+    <div class="tb-date" id="tbDate"></div>
+  </div>
+</div>
+
+<!-- ── PAGES ── -->
+<div class="content">
+
+<!-- ═══ OVERVIEW ═══ -->
+<div id="page-overview" class="page active">
+
+  <!-- KPI strip -->
+  <div class="kpi-grid">
+    <div class="kpi blue" onclick="goto('sales')" title="點擊查看產銷明細">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-lbl">本月銷售</div>
+      <div class="kpi-val" style="color:var(--blue2)">68.2k</div>
+      <div class="kpi-sub"><span class="kpi-delta up">↑ 8.4%</span><span style="color:var(--t3)">vs 上月</span></div>
+    </div>
+    <div class="kpi green" onclick="goto('sales')">
+      <div class="kpi-icon">🎯</div>
+      <div class="kpi-lbl">銷售達成率</div>
+      <div class="kpi-val" style="color:var(--green2)">91.2%</div>
+      <div class="kpi-sub"><span style="color:var(--t3)">目標 74,800瓶</span></div>
+    </div>
+    <div class="kpi cyan" onclick="goto('sales')">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-lbl">庫存天數</div>
+      <div class="kpi-val" style="color:var(--cyan2)">12.4</div>
+      <div class="kpi-sub"><span class="kpi-delta up">↓ 1.2天</span><span style="color:var(--t3)">健康</span></div>
+    </div>
+    <div class="kpi green" onclick="goto('production')">
+      <div class="kpi-icon">⚙</div>
+      <div class="kpi-lbl">本月產量</div>
+      <div class="kpi-val" style="color:var(--green2)">64.1k</div>
+      <div class="kpi-sub"><span class="kpi-delta up">↑ 94.3%</span><span style="color:var(--t3)">達成率</span></div>
+    </div>
+    <div class="kpi amber" onclick="goto('procurement')">
+      <div class="kpi-icon">🧪</div>
+      <div class="kpi-lbl">原料警示</div>
+      <div class="kpi-val" style="color:var(--amber2)">3</div>
+      <div class="kpi-sub"><span style="color:var(--t3)">項低於安全庫存</span></div>
+    </div>
+    <div class="kpi purple" onclick="goto('procurement')">
+      <div class="kpi-icon">🚚</div>
+      <div class="kpi-lbl">供應商達交率</div>
+      <div class="kpi-val" style="color:var(--purple2)">87.5%</div>
+      <div class="kpi-sub"><span class="kpi-delta down">↓ 4.2%</span><span style="color:var(--t3)">vs 上月</span></div>
+    </div>
+    <div class="kpi green" onclick="goto('finance')">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-lbl">毛利率</div>
+      <div class="kpi-val" style="color:var(--green2)">38.4%</div>
+      <div class="kpi-sub"><span class="kpi-delta up">↑ 1.2pp</span><span style="color:var(--t3)">vs 上月</span></div>
+    </div>
+    <div class="kpi blue" onclick="goto('finance')">
+      <div class="kpi-icon">🏦</div>
+      <div class="kpi-lbl">預算執行率</div>
+      <div class="kpi-val" style="color:var(--blue2)">76.8%</div>
+      <div class="kpi-sub"><span style="color:var(--t3)">年度累計</span></div>
+    </div>
+  </div>
+
+  <!-- Action alerts -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hdr"><span class="card-title">⚡ 本月需要決策的事項</span></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="alert alert-red"><span class="alert-icon">🔴</span><div><b>草莓原料庫存不足</b> — 預計5天後斷料，建議今日下單，前置3天<br><span style="opacity:.7">影響：草莓檸檬 3,500瓶產能暫停</span></div></div>
+      <div class="alert alert-amber"><span class="alert-icon">🟡</span><div><b>香芒銷售低於預測 12%</b> — 本月累積差額 -2,100瓶<br><span style="opacity:.7">建議：調降下月需求或促銷清庫存</span></div></div>
+      <div class="alert alert-amber"><span class="alert-icon">🟡</span><div><b>供應商 B 連續2個月延遲</b> — 交期達成率 67%<br><span style="opacity:.7">建議：評估替代供應商或增加安全庫存天數</span></div></div>
+      <div class="alert alert-blue"><span class="alert-icon">🔵</span><div><b>本月員工成本 vs 產值比偏高</b> — 1.23（目標 ≤1.10）<br><span style="opacity:.7">原因：加班增加，建議下月調整排班</span></div></div>
+    </div>
+  </div>
+
+  <!-- 2x2 summary grid -->
+  <div class="dash-grid">
+    <!-- Sales trend -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">📦 產銷概況</span>
+        <button class="btn btn-ghost" onclick="goto('sales')">明細 →</button>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:160px"><canvas id="ov-sales-chart"></canvas></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">銷售達成</div>
+            <div style="font-size:16px;font-weight:700;color:var(--green2);font-family:var(--mono)">91.2%</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">庫存天數</div>
+            <div style="font-size:16px;font-weight:700;color:var(--cyan2);font-family:var(--mono)">12.4天</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">庫存周轉</div>
+            <div style="font-size:16px;font-weight:700;color:var(--blue2);font-family:var(--mono)">2.9x/月</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Production -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">⚙ 生產概況</span>
+        <button class="btn btn-ghost" onclick="goto('production')">明細 →</button>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:160px"><canvas id="ov-prod-chart"></canvas></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">月達成率</div>
+            <div style="font-size:16px;font-weight:700;color:var(--green2);font-family:var(--mono)">94.3%</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">日均產量</div>
+            <div style="font-size:16px;font-weight:700;color:var(--blue2);font-family:var(--mono)">2,890</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">人均產值</div>
+            <div style="font-size:16px;font-weight:700;color:var(--amber2);font-family:var(--mono)">578瓶/h</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Procurement -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">🛒 採購概況</span>
+        <button class="btn btn-ghost" onclick="goto('procurement')">明細 →</button>
+      </div>
+      <div class="card-body">
+        <div id="ov-mat-list"></div>
+      </div>
+    </div>
+
+    <!-- Finance -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">💰 財務概況</span>
+        <button class="btn btn-ghost" onclick="goto('finance')">明細 →</button>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:160px"><canvas id="ov-finance-chart"></canvas></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">本月毛利</div>
+            <div style="font-size:16px;font-weight:700;color:var(--green2);font-family:var(--mono)">NT$412k</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--t3)">現金流淨額</div>
+            <div style="font-size:16px;font-weight:700;color:var(--amber2);font-family:var(--mono)">NT$+88k</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SALES ═══ -->
+<div id="page-sales" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-size:18px;font-weight:900">產銷分析</div>
+      <div style="font-size:11px;color:var(--t3);font-family:var(--mono);margin-top:2px">銷售預測 vs 實際 · 庫存 · 通路分析</div>
+    </div>
+    <button class="btn btn-outline" onclick="openModal('sales-detail')">📊 完整報表</button>
+  </div>
+
+  <div class="dash-grid-3" style="margin-bottom:14px">
+    <div class="kpi blue" style="cursor:default">
+      <div class="kpi-lbl">月銷售目標</div><div class="kpi-val" style="color:var(--blue2)">74,800</div>
+      <div class="kpi-sub"><span style="color:var(--t3)">瓶</span></div>
+    </div>
+    <div class="kpi green" style="cursor:default">
+      <div class="kpi-lbl">實際銷售</div><div class="kpi-val" style="color:var(--green2)">68,201</div>
+      <div class="kpi-sub"><span class="kpi-delta up">達成率 91.2%</span></div>
+    </div>
+    <div class="kpi amber" style="cursor:default">
+      <div class="kpi-lbl">差額</div><div class="kpi-val" style="color:var(--amber2)">-6,599</div>
+      <div class="kpi-sub"><span style="color:var(--t3)">瓶 本月缺口</span></div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <!-- Sales trend chart -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📈 月度銷售趨勢（預測 vs 實際）</span></div>
+      <div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="sales-trend-chart"></canvas></div></div>
+    </div>
+    <!-- By channel -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🏪 通路銷售分布</span></div>
+      <div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="sales-channel-chart"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <!-- Product performance -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📦 各品項達成率</span></div>
+      <div class="card-body" id="sales-prod-table"></div>
+    </div>
+    <!-- Inventory -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📦 庫存健康度</span></div>
+      <div class="card-body" id="inventory-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PRODUCTION ═══ -->
+<div id="page-production" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-size:18px;font-weight:900">生產分析</div>
+      <div style="font-size:11px;color:var(--t3);font-family:var(--mono);margin-top:2px">日週月產量 · 目標達成 · 人效分析</div>
+    </div>
+  </div>
+
+  <div class="dash-grid-4" style="margin-bottom:14px">
+    <div class="kpi green" style="cursor:default"><div class="kpi-lbl">本月產量</div><div class="kpi-val" style="color:var(--green2)">64,055</div><div class="kpi-sub"><span style="color:var(--t3)">瓶</span></div></div>
+    <div class="kpi blue" style="cursor:default"><div class="kpi-lbl">月計畫量</div><div class="kpi-val" style="color:var(--blue2)">67,900</div><div class="kpi-sub"><span style="color:var(--t3)">瓶</span></div></div>
+    <div class="kpi green" style="cursor:default"><div class="kpi-lbl">達成率</div><div class="kpi-val" style="color:var(--green2)">94.3%</div><div class="kpi-sub"><span class="kpi-delta up">↑ 2.1pp</span></div></div>
+    <div class="kpi amber" style="cursor:default"><div class="kpi-lbl">加班工時</div><div class="kpi-val" style="color:var(--amber2)">42h</div><div class="kpi-sub"><span style="color:var(--t3)">本月累計</span></div></div>
+  </div>
+
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📊 每週產量 vs 目標</span></div>
+      <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="prod-weekly-chart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📅 月累積達成趨勢</span></div>
+      <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="prod-cumulative-chart"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">👷 人效分析</span></div>
+      <div class="card-body" id="labor-efficiency-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📦 各品項本月生產</span></div>
+      <div class="card-body" id="prod-by-product"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PROCUREMENT ═══ -->
+<div id="page-procurement" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-size:18px;font-weight:900">採購分析</div>
+      <div style="font-size:11px;color:var(--t3);font-family:var(--mono);margin-top:2px">庫存預警 · 採購展望 · 供應商績效 · 成本走勢</div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🧪 原料庫存 vs 安全庫存</span></div>
+      <div class="card-body" id="material-stock-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🚚 採購展望 vs 實際到貨（近3月）</span></div>
+      <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="proc-arrival-chart"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🏭 供應商交期達成率</span></div>
+      <div class="card-body" id="supplier-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">📈 原料成本走勢（月均價）</span></div>
+      <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="cost-trend-chart"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FINANCE ═══ -->
+<div id="page-finance" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-size:18px;font-weight:900">財務分析</div>
+      <div style="font-size:11px;color:var(--t3);font-family:var(--mono);margin-top:2px">毛利 · 現金流 · 品項利潤 · 員工成本 · 預算執行</div>
+    </div>
+  </div>
+
+  <div class="dash-grid-4" style="margin-bottom:14px">
+    <div class="kpi green" style="cursor:default"><div class="kpi-lbl">毛利率</div><div class="kpi-val" style="color:var(--green2)">38.4%</div><div class="kpi-sub"><span class="kpi-delta up">↑ 1.2pp</span></div></div>
+    <div class="kpi blue" style="cursor:default"><div class="kpi-lbl">本月毛利</div><div class="kpi-val" style="color:var(--blue2)">412k</div><div class="kpi-sub"><span style="color:var(--t3)">NT$</span></div></div>
+    <div class="kpi amber" style="cursor:default"><div class="kpi-lbl">現金流淨額</div><div class="kpi-val" style="color:var(--amber2)">+88k</div><div class="kpi-sub"><span style="color:var(--t3)">NT$ 本月</span></div></div>
+    <div class="kpi purple" style="cursor:default"><div class="kpi-lbl">預算執行率</div><div class="kpi-val" style="color:var(--purple2)">76.8%</div><div class="kpi-sub"><span style="color:var(--t3)">年度累計</span></div></div>
+  </div>
+
+  <div class="dash-grid">
+    <!-- Gross margin trend -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">💰 毛利率走勢 vs 成本結構</span></div>
+      <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="margin-trend-chart"></canvas></div></div>
+    </div>
+    <!-- Cashflow -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🏦 現金流預測（應收/應付/庫存）</span></div>
+      <div class="card-body" id="cashflow-table"></div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <!-- Channel profit contribution -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">🏪 品項 / 通路利潤貢獻度</span></div>
+      <div class="card-body" id="profit-contrib-table"></div>
+    </div>
+    <!-- Labor vs output -->
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">👷 員工成本 vs 產值 · 年度預算執行</span></div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:160px"><canvas id="labor-cost-chart"></canvas></div>
+        <div id="budget-table" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /app -->
+
+<!-- ── DRILL-DOWN MODAL ── -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title">明細</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+Chart.defaults.color = '#475569';
+Chart.defaults.borderColor = '#1e2a42';
+Chart.defaults.font.family = "'DM Mono', monospace";
+Chart.defaults.font.size = 11;
+
+// ── Sample data (replace with real data / API) ──
+const MONTHS = ['10月','11月','12月','1月','2月','3月'];
+const PRODUCTS = ['熱情香芒','仲夏野莓','翡翠綜合','綠果昔','草莓檸檬','火龍果','木瓜','紅果昔'];
+
+const DATA = {
+  sales: {
+    forecast: [58000,62000,71000,66000,72000,74800],
+    actual:   [55200,64100,68400,62800,67900,68201],
+    channels: {
+      B端直銷: 42000, 超商: 18500, 網路: 5200, 其他: 2501
+    },
+    byProduct: [
+      {name:'熱情香芒',  target:18000, actual:17200, stock:1420, days:12.1},
+      {name:'仲夏野莓',  target:14000, actual:13800, stock:1150, days:11.5},
+      {name:'翡翠綜合',  target:10000, actual:8900,  stock:980,  days:15.2},
+      {name:'綠果昔',    target:8000,  actual:7600,  stock:640,  days:11.8},
+      {name:'草莓檸檬',  target:6000,  actual:6200,  stock:520,  days:11.6},
+      {name:'火龍果',    target:5000,  actual:4800,  stock:870,  days:24.8},
+      {name:'木瓜',      target:3000,  actual:2900,  stock:310,  days:14.8},
+      {name:'紅果昔',    target:2000,  actual:1800,  stock:290,  days:22.2},
+    ]
+  },
+  production: {
+    weeklyTarget:  [16800,16800,16800,16800],
+    weeklyActual:  [16200,15800,15600,16455],
+    cumTarget:  [2200,4400,6600,8800,11000,13200,15400,17600,19800,22000,24200,26400,28600,30800,33000,35200,37400,39600,41800,44000,46200,48400,50600,52800,55000,57200,59400,61600,63800,66000,67900],
+    cumActual:  [2100,4150,6100,8000,9800,11500,13200,14800,16300,17900,19400,20900,22500,24000,25400,26900,28300,29800,31200,32700,34100,35600,37000,38500,39900,41400,42800,44300,45700,47200,null],
+    byProduct: [
+      {name:'熱情香芒', plan:20000, actual:19200, rate:96.0},
+      {name:'仲夏野莓', plan:16000, actual:15400, rate:96.3},
+      {name:'翡翠綜合', plan:11200, actual:10200, rate:91.1},
+      {name:'綠果昔',   plan:9000,  actual:8300,  rate:92.2},
+      {name:'草莓檸檬', plan:6500,  actual:6600,  rate:101.5},
+      {name:'火龍果',   plan:5200,  actual:4355,  rate:83.8},
+    ],
+    labor: [
+      {week:'第1週',workers:5,hours:40,output:16200,perPerson:648,overtime:0},
+      {week:'第2週',workers:5,hours:42,output:15800,perPerson:632,overtime:4},
+      {week:'第3週',workers:5,hours:40,output:15600,perPerson:624,overtime:0},
+      {week:'第4週',workers:5,hours:44,output:16455,perPerson:658,overtime:8},
+    ]
+  },
+  procurement: {
+    materials: [
+      {name:'愛文芒果', stock:280, safety:200, unit:'kg', status:'ok',   lead:3, supplier:'供應商A'},
+      {name:'草莓',     stock:85,  safety:150, unit:'kg', status:'low',  lead:3, supplier:'供應商B'},
+      {name:'鳳梨',     stock:420, safety:300, unit:'kg', status:'ok',   lead:2, supplier:'供應商A'},
+      {name:'藍莓',     stock:40,  safety:80,  unit:'kg', status:'low',  lead:5, supplier:'供應商C'},
+      {name:'蔓越莓',   stock:95,  safety:100, unit:'kg', status:'warn', lead:4, supplier:'供應商B'},
+      {name:'蘋果',     stock:380, safety:250, unit:'kg', status:'ok',   lead:2, supplier:'供應商A'},
+      {name:'芭樂',     stock:55,  safety:120, unit:'kg', status:'low',  lead:3, supplier:'供應商D'},
+      {name:'酪梨',     stock:145, safety:100, unit:'kg', status:'ok',   lead:4, supplier:'供應商C'},
+    ],
+    procForecast: [320,410,380,420,395,440],
+    procActual:   [310,398,365,415,null,null],
+    suppliers: [
+      {name:'供應商A', orders:12, ontime:12, rate:100.0, avgDelay:0},
+      {name:'供應商B', orders:9,  ontime:6,  rate:66.7,  avgDelay:2.3},
+      {name:'供應商C', orders:7,  ontime:6,  rate:85.7,  avgDelay:0.8},
+      {name:'供應商D', orders:5,  ontime:4,  rate:80.0,  avgDelay:1.2},
+    ],
+    costTrend: {
+      labels: MONTHS,
+      愛文芒果: [85,88,92,89,91,94],
+      草莓:     [120,115,118,125,128,135],
+      鳳梨:     [42,44,43,45,44,46],
+    }
+  },
+  finance: {
+    marginTrend: [34.2,35.8,37.1,36.4,37.8,38.4],
+    rawCostPct:  [42,41,40,41,40,39],
+    laborCostPct:[18,17,18,17,17,18],
+    overheadPct: [6,6,5,6,5,5],
+    cashflow: [
+      {label:'應收帳款',  m1:580, m2:620, m3:680},
+      {label:'應付帳款',  m1:-340,m2:-380,m3:-420},
+      {label:'庫存可轉現',m1:210, m2:195, m3:228},
+      {label:'淨現金流',  m1:450, m2:435, m3:488},
+    ],
+    channels: [
+      {name:'B端直銷',  revenue:562000,cost:332000,margin:41.3,color:'#3b82f6'},
+      {name:'超商通路', revenue:247000,cost:162000,margin:34.4,color:'#10b981'},
+      {name:'網路直銷', revenue:69000, cost:38000, margin:44.9,color:'#8b5cf6'},
+      {name:'其他',     revenue:33000, cost:22000, margin:33.3,color:'#f59e0b'},
+    ],
+    laborVsOutput: {
+      months: MONTHS,
+      laborCost: [128,132,125,130,128,138],
+      outputValue:[340,358,342,349,355,368],
+    },
+    budget: [
+      {item:'原料採購',  budget:1800, actual:1420, pct:78.9},
+      {item:'人力成本',  budget:780,  actual:638,  pct:81.8},
+      {item:'製造費用',  budget:240,  actual:186,  pct:77.5},
+      {item:'行銷費用',  budget:120,  actual:82,   pct:68.3},
+    ]
+  }
+};
+
+// ── NAV ──
+function goto(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  const pages = ['overview','sales','production','procurement','finance'];
+  const idx = pages.indexOf(page);
+  if(idx>=0) document.querySelectorAll('.tb-btn')[idx].classList.add('active');
+  renderPage(page);
+}
+
+function changePeriod() { /* In real app, refetch data */ showTooltip('資料已更新（示範用假資料）'); }
+
+// ── RENDER ALL PAGES ──
+function renderPage(page) {
+  if(page==='overview')    renderOverview();
+  if(page==='sales')       renderSales();
+  if(page==='production')  renderProduction();
+  if(page==='procurement') renderProcurement();
+  if(page==='finance')     renderFinance();
+}
+
+// ── OVERVIEW ──
+let ovCharts = {};
+function renderOverview() {
+  destroyCharts(['ov-sales','ov-prod','ov-finance']);
+  // Sales trend mini
+  ovCharts['ov-sales'] = new Chart(document.getElementById('ov-sales-chart'), {
+    type:'line',
+    data:{
+      labels: MONTHS,
+      datasets:[
+        {label:'預測',data:DATA.sales.forecast,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',tension:.4,fill:true,pointRadius:2},
+        {label:'實際',data:DATA.sales.actual,  borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.1)',tension:.4,fill:true,pointRadius:2},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:'#1e2a42'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v}}}}
+  });
+  // Production mini bars
+  ovCharts['ov-prod'] = new Chart(document.getElementById('ov-prod-chart'), {
+    type:'bar',
+    data:{
+      labels:['第1週','第2週','第3週','第4週'],
+      datasets:[
+        {label:'目標',data:DATA.production.weeklyTarget,backgroundColor:'rgba(59,130,246,.3)',borderRadius:4},
+        {label:'實際',data:DATA.production.weeklyActual,backgroundColor:'#10b981',borderRadius:4},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:'#1e2a42'}}}}
+  });
+  // Finance donut
+  ovCharts['ov-finance'] = new Chart(document.getElementById('ov-finance-chart'), {
+    type:'doughnut',
+    data:{
+      labels:['原料成本','人力成本','製造費用','毛利'],
+      datasets:[{data:[39,18,5,38],backgroundColor:['#ef4444','#f59e0b','#8b5cf6','#10b981'],borderWidth:0,hoverOffset:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,padding:8,font:{size:10}}}},cutout:'65%'}
+  });
+  // Material list
+  const low = DATA.procurement.materials.filter(m=>m.status!=='ok');
+  document.getElementById('ov-mat-list').innerHTML = DATA.procurement.materials.map(m=>{
+    const pct = Math.min(100, m.stock/m.safety*100);
+    const cls = m.status==='low'?'pfill-red':m.status==='warn'?'pfill-amber':'pfill-green';
+    const badgeCls = m.status==='low'?'b-red':m.status==='warn'?'b-amber':'b-green';
+    const label = m.status==='low'?'不足':m.status==='warn'?'警示':'充足';
+    return `<div class="metric-bar-row">
+      <div class="metric-bar-top">
+        <span class="metric-bar-lbl">${m.name}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;font-family:var(--mono);color:var(--t2)">${m.stock}/${m.safety}kg</span>
+          <span class="badge ${badgeCls}">${label}</span>
+        </div>
+      </div>
+      <div class="pbar"><div class="pfill ${cls}" style="width:${pct.toFixed(0)}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── SALES ──
+let salesCharts = {};
+function renderSales() {
+  destroyCharts(['sales-trend','sales-channel']);
+  salesCharts['sales-trend'] = new Chart(document.getElementById('sales-trend-chart'), {
+    type:'line',
+    data:{
+      labels: MONTHS,
+      datasets:[
+        {label:'銷售預測',data:DATA.sales.forecast,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',tension:.4,fill:true,borderWidth:2,pointRadius:4,pointHoverRadius:6},
+        {label:'實際銷售',data:DATA.sales.actual,  borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.08)',tension:.4,fill:true,borderWidth:2,pointRadius:4,pointHoverRadius:6},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12}}},
+      scales:{x:{grid:{color:'#1e2a42'}},y:{grid:{color:'#1e2a42'},ticks:{callback:v=>(v/1000).toFixed(0)+'k'}}}}
+  });
+  const ch = DATA.sales.channels;
+  salesCharts['sales-channel'] = new Chart(document.getElementById('sales-channel-chart'), {
+    type:'doughnut',
+    data:{labels:Object.keys(ch),datasets:[{data:Object.values(ch),backgroundColor:['#3b82f6','#10b981','#8b5cf6','#f59e0b'],borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',boxWidth:12,padding:12}}},cutout:'60%'}
+  });
+
+  // Product performance table
+  document.getElementById('sales-prod-table').innerHTML = `
+    <table class="tbl"><thead><tr><th>品項</th><th>目標</th><th>實際</th><th>達成率</th><th>狀態</th></tr></thead><tbody>
+    ${DATA.sales.byProduct.map(p=>{
+      const rate=(p.actual/p.target*100).toFixed(1);
+      const cls=+rate>=100?'b-green':+rate>=90?'b-amber':'b-red';
+      const bw=Math.min(100,+rate);
+      return `<tr>
+        <td style="font-weight:700">${p.name}</td>
+        <td class="mono">${p.target.toLocaleString()}</td>
+        <td class="mono">${p.actual.toLocaleString()}</td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <div class="pbar" style="width:70px"><div class="pfill ${+rate>=100?'pfill-green':+rate>=90?'pfill-amber':'pfill-red'}" style="width:${bw}%"></div></div>
+          <span class="mono" style="font-size:11px">${rate}%</span>
+        </div></td>
+        <td><span class="badge ${cls}">${+rate>=100?'達標':+rate>=90?'接近':'未達'}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+
+  // Inventory table
+  document.getElementById('inventory-table').innerHTML = `
+    <table class="tbl"><thead><tr><th>品項</th><th>庫存量</th><th>庫存天數</th><th>周轉率</th><th>健康度</th></tr></thead><tbody>
+    ${DATA.sales.byProduct.map(p=>{
+      const turnover=(30/p.days).toFixed(1);
+      const health=p.days<7?'過低':p.days>30?'過高':'健康';
+      const hcls=p.days<7?'b-red':p.days>30?'b-amber':'b-green';
+      return `<tr>
+        <td style="font-weight:700">${p.name}</td>
+        <td class="mono">${p.stock.toLocaleString()}</td>
+        <td class="mono" style="color:${p.days<7?'var(--red2)':p.days>30?'var(--amber2)':'var(--green2)'}">${p.days}天</td>
+        <td class="mono">${turnover}x/月</td>
+        <td><span class="badge ${hcls}">${health}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+}
+
+// ── PRODUCTION ──
+let prodCharts = {};
+function renderProduction() {
+  destroyCharts(['prod-weekly','prod-cumulative','labor-cost-prod']);
+  prodCharts['prod-weekly'] = new Chart(document.getElementById('prod-weekly-chart'), {
+    type:'bar',
+    data:{labels:['第1週','第2週','第3週','第4週'],
+      datasets:[
+        {label:'目標',data:DATA.production.weeklyTarget,backgroundColor:'rgba(59,130,246,.3)',borderRadius:4,barPercentage:.6},
+        {label:'實際',data:DATA.production.weeklyActual,backgroundColor:'#10b981',borderRadius:4,barPercentage:.6},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#1e2a42'},ticks:{callback:v=>(v/1000).toFixed(0)+'k'}}}}
+  });
+  const days31 = Array.from({length:31},(_,i)=>i+1+'日');
+  prodCharts['prod-cumulative'] = new Chart(document.getElementById('prod-cumulative-chart'), {
+    type:'line',
+    data:{labels:days31,
+      datasets:[
+        {label:'計畫累積',data:DATA.production.cumTarget,borderColor:'#3b82f6',borderDash:[5,3],tension:0,pointRadius:0,borderWidth:1.5},
+        {label:'實際累積',data:DATA.production.cumActual,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.08)',fill:true,tension:.1,pointRadius:0,borderWidth:2},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12}}},
+      scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}},y:{grid:{color:'#1e2a42'},ticks:{callback:v=>(v/1000).toFixed(0)+'k'}}}}
+  });
+
+  // Labor efficiency
+  document.getElementById('labor-efficiency-table').innerHTML = `
+    <table class="tbl"><thead><tr><th>週次</th><th>人數</th><th>總工時</th><th>產量</th><th>人均/h</th><th>加班h</th></tr></thead><tbody>
+    ${DATA.production.labor.map(w=>`<tr>
+      <td style="font-weight:700">${w.week}</td>
+      <td class="mono">${w.workers}</td>
+      <td class="mono">${w.hours*w.workers}h</td>
+      <td class="mono">${w.output.toLocaleString()}</td>
+      <td class="mono" style="color:${w.perPerson>=640?'var(--green2)':'var(--amber2)'}">${w.perPerson}</td>
+      <td class="mono" style="color:${w.overtime>0?'var(--amber2)':'var(--t3)'}">${w.overtime||'—'}</td>
+    </tr>`).join('')}
+    </tbody></table>
+    <div style="margin-top:10px;padding:8px 10px;background:var(--s2);border-radius:7px;font-size:11px;color:var(--t2)">
+      員工成本 vs 產值比：<b style="color:var(--amber2)">1.23</b>（目標 ≤1.10）— 加班是主因，建議下月調整排班</div>`;
+
+  // By product
+  document.getElementById('prod-by-product').innerHTML = `
+    <table class="tbl"><thead><tr><th>品項</th><th>計畫</th><th>實際</th><th>達成率</th></tr></thead><tbody>
+    ${DATA.production.byProduct.map(p=>{
+      const cls=p.rate>=100?'pfill-green':p.rate>=90?'pfill-amber':'pfill-red';
+      return `<tr>
+        <td style="font-weight:700">${p.name}</td>
+        <td class="mono">${p.plan.toLocaleString()}</td>
+        <td class="mono">${p.actual.toLocaleString()}</td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <div class="pbar" style="width:80px"><div class="pfill ${cls}" style="width:${Math.min(100,p.rate)}%"></div></div>
+          <span class="mono" style="font-size:11px;color:${p.rate>=100?'var(--green2)':p.rate>=90?'var(--amber2)':'var(--red2)'}">${p.rate}%</span>
+        </div></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+}
+
+// ── PROCUREMENT ──
+let procCharts = {};
+function renderProcurement() {
+  destroyCharts(['proc-arrival','cost-trend']);
+  procCharts['proc-arrival'] = new Chart(document.getElementById('proc-arrival-chart'), {
+    type:'bar',
+    data:{labels:MONTHS.slice(-3),
+      datasets:[
+        {label:'採購展望',data:DATA.procurement.procForecast.slice(-3),backgroundColor:'rgba(59,130,246,.3)',borderRadius:4},
+        {label:'實際到貨',data:DATA.procurement.procActual.slice(-3),backgroundColor:'#10b981',borderRadius:4},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#1e2a42'}}}}
+  });
+  const ct = DATA.procurement.costTrend;
+  procCharts['cost-trend'] = new Chart(document.getElementById('cost-trend-chart'), {
+    type:'line',
+    data:{labels:ct.labels,
+      datasets:[
+        {label:'愛文芒果',data:ct.愛文芒果,borderColor:'#f59e0b',tension:.4,pointRadius:3,borderWidth:2},
+        {label:'草莓',    data:ct.草莓,    borderColor:'#ec4899',tension:.4,pointRadius:3,borderWidth:2},
+        {label:'鳳梨',    data:ct.鳳梨,    borderColor:'#10b981',tension:.4,pointRadius:3,borderWidth:2},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#1e2a42'},title:{display:true,text:'NT$/kg',color:'#475569'}}}}
+  });
+
+  // Material stock table
+  document.getElementById('material-stock-table').innerHTML = `
+    <table class="tbl"><thead><tr><th>原料</th><th>現有庫存</th><th>安全庫存</th><th>覆蓋率</th><th>前置</th><th>供應商</th><th>狀態</th></tr></thead><tbody>
+    ${DATA.procurement.materials.map(m=>{
+      const pct=(m.stock/m.safety*100).toFixed(0);
+      const cls=m.status==='low'?'pfill-red':m.status==='warn'?'pfill-amber':'pfill-green';
+      const bcls=m.status==='low'?'b-red':m.status==='warn'?'b-amber':'b-green';
+      const label=m.status==='low'?'⚠ 不足':m.status==='warn'?'注意':'充足';
+      return `<tr>
+        <td style="font-weight:700">${m.name}</td>
+        <td class="mono">${m.stock}kg</td>
+        <td class="mono">${m.safety}kg</td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <div class="pbar" style="width:60px"><div class="pfill ${cls}" style="width:${Math.min(100,pct)}%"></div></div>
+          <span class="mono" style="font-size:10px">${pct}%</span>
+        </div></td>
+        <td class="mono" style="color:var(--t2)">${m.lead}天</td>
+        <td style="color:var(--t2);font-size:11px">${m.supplier}</td>
+        <td><span class="badge ${bcls}">${label}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+
+  // Supplier table
+  document.getElementById('supplier-table').innerHTML = `
+    <table class="tbl"><thead><tr><th>供應商</th><th>訂單數</th><th>準時到貨</th><th>達交率</th><th>平均延遲</th><th>評級</th></tr></thead><tbody>
+    ${DATA.procurement.suppliers.map(s=>{
+      const grade=s.rate>=95?'A':s.rate>=80?'B':s.rate>=70?'C':'D';
+      const gcls=s.rate>=95?'b-green':s.rate>=80?'b-blue':s.rate>=70?'b-amber':'b-red';
+      return `<tr>
+        <td style="font-weight:700">${s.name}</td>
+        <td class="mono">${s.orders}</td>
+        <td class="mono">${s.ontime}</td>
+        <td class="mono" style="color:${s.rate>=95?'var(--green2)':s.rate>=80?'var(--blue2)':'var(--red2)'}">${s.rate.toFixed(1)}%</td>
+        <td class="mono" style="color:${s.avgDelay>0?'var(--amber2)':'var(--t3)'}">${s.avgDelay>0?s.avgDelay+'天':'—'}</td>
+        <td><span class="badge ${gcls}">${grade}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+}
+
+// ── FINANCE ──
+let finCharts = {};
+function renderFinance() {
+  destroyCharts(['margin-trend','labor-cost-finance']);
+  finCharts['margin-trend'] = new Chart(document.getElementById('margin-trend-chart'), {
+    type:'bar',
+    data:{labels:MONTHS,
+      datasets:[
+        {label:'原料成本%',  data:DATA.finance.rawCostPct,   backgroundColor:'#ef4444',stack:'cost',borderRadius:0},
+        {label:'人力成本%',  data:DATA.finance.laborCostPct, backgroundColor:'#f59e0b',stack:'cost',borderRadius:0},
+        {label:'製造費用%',  data:DATA.finance.overheadPct,  backgroundColor:'#8b5cf6',stack:'cost',borderRadius:0},
+        {label:'毛利%',      data:DATA.finance.marginTrend,  backgroundColor:'#10b981',stack:'cost',borderRadius:0},
+        {type:'line',label:'毛利率', data:DATA.finance.marginTrend,borderColor:'#34d399',borderWidth:2,pointRadius:4,tension:.4,yAxisID:'y',stack:undefined},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',boxWidth:10,filter:i=>i.text!=='毛利%'}}},
+      scales:{x:{grid:{display:false},stacked:true},y:{grid:{color:'#1e2a42'},stacked:true,max:100,ticks:{callback:v=>v+'%'}}}}
+  });
+
+  finCharts['labor-cost-finance'] = new Chart(document.getElementById('labor-cost-chart'), {
+    type:'line',
+    data:{labels:DATA.finance.laborVsOutput.months,
+      datasets:[
+        {label:'員工成本(k)',data:DATA.finance.laborVsOutput.laborCost,  borderColor:'#ef4444',tension:.4,pointRadius:3,yAxisID:'y1'},
+        {label:'產值(k)',    data:DATA.finance.laborVsOutput.outputValue, borderColor:'#10b981',tension:.4,pointRadius:3,yAxisID:'y1'},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',boxWidth:12}}},
+      scales:{x:{grid:{display:false}},y1:{grid:{color:'#1e2a42'},ticks:{callback:v=>'$'+v+'k'}}}}
+  });
+
+  // Cashflow table
+  const cf = DATA.finance.cashflow;
+  document.getElementById('cashflow-table').innerHTML = `
+    <div class="cf-row" style="background:var(--s2)">
+      <div class="cf-cell cf-lbl" style="padding:6px 8px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.6px">項目</div>
+      <div class="cf-cell" style="color:var(--t2);text-align:center;font-size:10px;grid-column:span 2">1月(k)</div>
+      <div class="cf-cell" style="color:var(--t2);text-align:center;font-size:10px;grid-column:span 2">2月(k)</div>
+      <div class="cf-cell" style="color:var(--t2);text-align:center;font-size:10px;grid-column:span 2">3月(k)</div>
+    </div>
+    ${cf.map(r=>`
+    <div class="cf-row">
+      <div class="cf-cell cf-lbl">${r.label}</div>
+      <div class="cf-cell ${r.m1>0?'cf-positive':'cf-negative'} cf-total" style="grid-column:span 2">NT$${Math.abs(r.m1)}</div>
+      <div class="cf-cell ${r.m2>0?'cf-positive':'cf-negative'} cf-total" style="grid-column:span 2">NT$${Math.abs(r.m2)}</div>
+      <div class="cf-cell ${r.m3>0?'cf-positive':'cf-negative'} cf-total" style="grid-column:span 2">NT$${Math.abs(r.m3)}</div>
+    </div>`).join('')}`;
+
+  // Profit contribution
+  document.getElementById('profit-contrib-table').innerHTML = `
+    <table class="tbl"><thead><tr><th>通路</th><th>營收(NT$)</th><th>成本(NT$)</th><th>毛利率</th><th>利潤貢獻</th></tr></thead><tbody>
+    ${DATA.finance.channels.map(c=>{
+      const profit=c.revenue-c.cost;
+      const total=DATA.finance.channels.reduce((s,x)=>s+(x.revenue-x.cost),0);
+      const contrib=(profit/total*100).toFixed(0);
+      return `<tr>
+        <td style="display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:${c.color};display:inline-block"></span><b>${c.name}</b></td>
+        <td class="mono">${(c.revenue/1000).toFixed(0)}k</td>
+        <td class="mono">${(c.cost/1000).toFixed(0)}k</td>
+        <td class="mono" style="color:${c.margin>40?'var(--green2)':'var(--blue2)'}">${c.margin}%</td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <div class="contrib-bar-wrap"><div class="contrib-bar" style="background:${c.color};width:${contrib}%;height:100%"></div></div>
+          <span class="mono" style="font-size:11px">${contrib}%</span>
+        </div></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+
+  // Budget
+  document.getElementById('budget-table').innerHTML = DATA.finance.budget.map(b=>{
+    const cls=b.pct>=90?'pfill-red':b.pct>=75?'pfill-amber':'pfill-blue';
+    return `<div class="metric-bar-row">
+      <div class="metric-bar-top">
+        <span class="metric-bar-lbl">${b.item}</span>
+        <span class="metric-bar-pct" style="color:${b.pct>=90?'var(--red2)':b.pct>=75?'var(--amber2)':'var(--blue2)'}">${b.actual}k / ${b.budget}k (${b.pct.toFixed(1)}%)</span>
+      </div>
+      <div class="pbar"><div class="pfill ${cls}" style="width:${b.pct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── Chart cleanup ──
+const chartRegistry = {};
+function destroyCharts(ids) {
+  ids.forEach(id => {
+    if(chartRegistry[id]) { chartRegistry[id].destroy(); delete chartRegistry[id]; }
+    const el = document.getElementById(id+'-chart');
+    if(el) { const old=Chart.getChart(el); if(old) old.destroy(); }
+  });
+}
+
+// ── Modal ──
+function openModal(type) {
+  const overlay = document.getElementById('modal-overlay');
+  const body    = document.getElementById('modal-body');
+  const title   = document.getElementById('modal-title');
+  if(type==='sales-detail') {
+    title.textContent = '📦 產銷完整報表';
+    body.innerHTML = `<table class="tbl"><thead><tr>
+      <th>月份</th><th>銷售目標</th><th>實際銷售</th><th>達成率</th><th>vs 上月</th><th>庫存天數</th>
+    </tr></thead><tbody>
+    ${MONTHS.map((m,i)=>{
+      const tgt=DATA.sales.forecast[i], act=DATA.sales.actual[i];
+      const rate=(act/tgt*100).toFixed(1);
+      const prev=i>0?DATA.sales.actual[i-1]:null;
+      const delta=prev?((act-prev)/prev*100).toFixed(1):null;
+      return `<tr>
+        <td style="font-weight:700">${m}</td>
+        <td class="mono">${tgt.toLocaleString()}</td>
+        <td class="mono">${act.toLocaleString()}</td>
+        <td class="mono" style="color:${+rate>=100?'var(--green2)':+rate>=90?'var(--amber2)':'var(--red2)'}">${rate}%</td>
+        <td class="mono" style="color:${delta>=0?'var(--green2)':'var(--red2)'}">${delta!==null?(+delta>=0?'↑':'↓')+Math.abs(delta)+'%':'—'}</td>
+        <td class="mono">—</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+  }
+  overlay.classList.add('open');
+}
+function closeModal(e) {
+  if(!e || e.target===document.getElementById('modal-overlay') || !e.target) {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+}
+
+// ── Tooltip ──
+function showTooltip(msg) {
+  const el = document.createElement('div');
+  el.style.cssText='position:fixed;bottom:20px;right:20px;background:#10b981;color:#0b0e18;padding:8px 16px;border-radius:8px;font-weight:700;font-size:12px;z-index:999;opacity:1;transition:opacity .3s';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300);},2500);
+}
+
+// ── Date display ──
+const now = new Date();
+document.getElementById('tbDate').textContent = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} 更新`;
+
+// ── INIT ──
+renderOverview();
+</script>
+</body>
+</html>
