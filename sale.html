@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>決策執行儀表板 - 檔案直傳版</title>
+<title>決策執行儀表板 - 銷售報表直傳版</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -20,7 +20,6 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;padding:20px;}
 
-/* ── 上傳區樣式 ── */
 .upload-container {
   background: var(--s1);
   border: 2px dashed var(--blue);
@@ -35,46 +34,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
   background: var(--s2);
   border-color: var(--green);
 }
-.upload-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--blue2);
-  margin-bottom: 5px;
-}
-.upload-sub {
-  color: var(--t3);
-  font-size: 11px;
-}
+.upload-title { font-size: 16px; font-weight: 700; color: var(--blue2); margin-bottom: 5px; }
+.upload-sub { color: var(--t3); font-size: 11px; }
 #fileInput { display: none; }
 
-/* ── KPI 區 ── */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
 .kpi{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:20px;position:relative;}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:10px 10px 0 0}
 .kpi.blue::before{background:var(--blue)}.kpi.green::before{background:var(--green)}
 .kpi.amber::before{background:var(--amber)}.kpi.red::before{background:var(--red)}
 .kpi-lbl{font-size:11px;color:var(--t3);margin-bottom:8px;letter-spacing:.5px}
-.kpi-val{font-size:28px;font-weight:700;font-family:var(--mono);line-height:1}
+.kpi-val{font-size:24px;font-weight:700;font-family:var(--mono);line-height:1}
 
-.chart-card {
-  background: var(--s1);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
-}
-.chart-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--t2);
-  margin-bottom: 15px;
-}
+.chart-card { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.chart-title { font-size: 13px; font-weight: 700; color: var(--t2); margin-bottom: 15px; }
 </style>
 </head>
 <body>
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">支援標準 .csv 格式，上傳後網頁將直接在本地瀏覽器完成運算</div>
+    <div class="upload-sub">已加入 ECOUNT ERP (Big5/ANSI) 編碼自動修正技術</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
@@ -107,77 +87,76 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 <script>
 let currentChart = null;
 
-// 監聽上傳按鈕變更
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
 
-  // 使用 PapaParse 解析 CSV 檔案
+  // 【核心修改】：強制指定以 Big5 (繁體中文 Windows 預設) 編碼讀取 ERP 檔案
   Papa.parse(file, {
-    header: true,         // 自動將第一列識別為欄位名稱
-    skipEmptyLines: true, // 跳過空白列
+    header: true,
+    skipEmptyLines: true,
+    encoding: "Big5", 
     complete: function(results) {
       processERPData(results.data);
     }
   });
 });
 
-// 核心資料解析與加總邏輯
 function processERPData(rows) {
   let totalSales = 0;
   let totalOrders = 0;
-  let orderCount = rows.length;
+  let orderCount = 0;
   let detectedMonth = "未知";
-  
-  // 用來統計各品項數量的物件
   let productSummary = {};
 
   rows.forEach(row => {
-    // 1. 累加金額（自動排除非數字符號如逗號）
-    let amount = parseFloat(String(row['合計'] || row['金額'] || 0).replace(/,/g, ''));
+    // 清洗欄位名稱的隱形空白
+    let cleanRow = {};
+    Object.keys(row).forEach(k => { cleanRow[k.trim()] = row[k]; });
+
+    // 排除億看報表最底部的系統合計列
+    let pName = cleanRow['品項名稱'] || cleanRow['品項'] || cleanRow['規格'];
+    if (!pName || pName.includes('合計') || pName.trim() === '') return;
+
+    orderCount++;
+
+    // 累加金額
+    let amount = parseFloat(String(cleanRow['合計'] || cleanRow['金額'] || 0).replace(/,/g, ''));
     if (!isNaN(amount)) totalSales += amount;
 
-    // 2. 累加數量
-    let qty = parseFloat(String(row['數量'] || 0).replace(/,/g, ''));
+    // 累加數量
+    let qty = parseFloat(String(cleanRow['數量'] || 0).replace(/,/g, ''));
     if (!isNaN(qty)) totalOrders += qty;
 
-    // 3. 統計各品項銷量
-    let pName = row['品項名稱'] || row['品項'] || row['規格'];
+    // 品項銷量加總
     if (pName && !isNaN(qty)) {
       productSummary[pName] = (productSummary[pName] || 0) + qty;
     }
 
-    // 4. 抓取月份基準
-    let dateStr = row['銷貨日期'] || row['日期'];
+    // 偵測月份
+    let dateStr = cleanRow['銷貨日期'] || cleanRow['日期'];
     if (dateStr && detectedMonth === "未知") {
-      // 擷取前 7 個字元，例如 "2026-05"
       detectedMonth = dateStr.substring(0, 7);
     }
   });
 
-  // 更新畫面的數字
+  // 更新介面
   document.getElementById('val-sales').textContent = 'NT$ ' + totalSales.toLocaleString();
   document.getElementById('val-orders').textContent = totalOrders.toLocaleString() + ' 瓶';
   document.getElementById('val-count').textContent = orderCount + ' 張';
   document.getElementById('val-month').textContent = detectedMonth;
 
-  // 將品項資料排序，準備畫圖表
-  let sortedProducts = Object.entries(productSummary).sort((a, b) => b[1] - a[1]);
+  let sortedProducts = Object.entries(productSummary).sort((b, a) => a[1] - b[1]);
   let labels = sortedProducts.map(x => x[0]);
   let dataValues = sortedProducts.map(x => x[1]);
 
-  // 繪製或更新圖表
   updateChart(labels, dataValues);
-  showNotification('⚡ CSV 檔案解析成功，資料已同步！');
+  showNotification('⚡ CSV 檔案解析成功，已修正編碼！');
 }
 
-// 圖表繪製功能
 function updateChart(labels, data) {
   const ctx = document.getElementById('dynamic-chart').getContext('2d');
-  
-  if (currentChart) {
-    currentChart.destroy(); // 銷毀舊圖表防止重疊
-  }
+  if (currentChart) { currentChart.destroy(); }
 
   currentChart = new Chart(ctx, {
     type: 'bar',
@@ -193,11 +172,9 @@ function updateChart(labels, data) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: '#94a3b8' } }
-      },
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
         y: { grid: { color: '#1e2a42' }, ticks: { color: '#94a3b8' } }
       }
     }
