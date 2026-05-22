@@ -12,13 +12,13 @@
   --bg:#080c14;--s1:#0f1420;--s2:#161d2e;--s3:#1d263d;--border:#1e2a42;
   --blue:#3b82f6;--blue2:#60a5fa;--green:#10b981;--green2:#34d399;
   --amber:#f59e0b;--amber2:#fbbf24;--red:#ef4444;--red2:#f87171;
+  --purple:#8b5cf6;--purple2:#a78bfa;--cyan:#06b6d4;--cyan2:#22d3ee;
   --text:#f1f5f9;--t2:#94a3b8;--t3:#475569;
   --font:'Noto Sans TC',sans-serif;--mono:'DM Mono',monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;padding:20px;}
 
-/* 雙檔案上傳聯防區 */
 .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 .upload-box { background: var(--s1); border: 2px dashed var(--blue); border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; transition: all 0.2s; }
 .upload-box:hover { background: var(--s2); border-color: var(--green); }
@@ -26,7 +26,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .u-sub { color: var(--t3); font-size: 11px; }
 input[type="file"] { display: none; }
 
-/* 決策頁籤切換系統 */
 .tab-container { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 20px; gap: 4px; }
 .tab-btn { background: var(--s1); border: 1px solid var(--border); border-bottom: none; color: var(--t2); padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; border-radius: 6px 6px 0 0; transition: all 0.2s; }
 .tab-btn:hover { background: var(--s2); color: var(--text); }
@@ -35,17 +34,21 @@ input[type="file"] { display: none; }
 .tab-content.active { display: block; }
 
 .card { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
-.card-title { font-size: 14px; font-weight: 700; color: var(--t2); margin-bottom: 15px; border-left: 3px solid var(--blue); padding-left: 8px; }
+.card-title { font-size: 13px; font-weight: 700; color: var(--t2); margin-bottom: 15px; border-left: 3px solid var(--blue); padding-left: 8px; display: flex; justify-content: space-between; }
+.split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 
 .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .tbl th { background: var(--s2); padding: 10px; text-align: left; color: var(--t2); font-weight: 700; border-bottom: 2px solid var(--border); }
-.tbl td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .mono { font-family: var(--mono); font-weight: 700; }
 
-.badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; display: inline-block; }
+.b-blue { background: rgba(59,130,246,0.15); color: var(--blue2); }
+.b-green { background: rgba(16,185,129,0.15); color: var(--green2); }
+.b-purple { background: rgba(139,92,246,0.15); color: var(--purple2); }
+.b-amber { background: rgba(245,158,11,0.15); color: var(--amber2); }
+.b-cyan { background: rgba(6,182,212,0.15); color: var(--cyan2); }
 .b-red { background: rgba(239,68,68,0.2); color: var(--red2); }
-.b-amber { background: rgba(245,158,11,0.2); color: var(--amber2); }
-.b-green { background: rgba(16,185,129,0.2); color: var(--green2); }
 </style>
 </head>
 <body>
@@ -64,26 +67,43 @@ input[type="file"] { display: none; }
   </div>
 
   <div class="tab-container">
-    <button class="tab-btn active" onclick="switchTab(event, 'tab-sales')">📈 頁籤一：銷售分析</button>
+    <button class="tab-btn active" onclick="switchTab(event, 'tab-sales')">📈 頁籤一：銷售分析 (四路分流)</button>
     <button class="tab-btn" onclick="switchTab(event, 'tab-stock')">📦 頁籤二：庫存現況分析</button>
     <button class="tab-btn" onclick="switchTab(event, 'tab-strategy')">🚨 頁籤三：可用天數與排產決策</button>
   </div>
 
   <div id="tab-sales" class="tab-content active">
-    <div class="card">
-      <div class="card-title">品項本月銷售總量與市場速度追蹤</div>
-      <table class="tbl" id="tbl-sales-analysis">
-        <thead>
-          <tr>
-            <th>銷售品項名稱 (標準化清洗)</th>
-            <th>本月累計銷量</th>
-            <th>日均銷速 (計換基礎)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="3" style="text-align:center; color:var(--t3); padding:30px;">請上傳銷售明細檔案。</td></tr>
-        </tbody>
-      </table>
+    <div class="split-grid">
+      <div class="card">
+        <div class="card-title">🟢 1. 核心零售品項銷量 <span class="badge b-green">單位：瓶/袋</span></div>
+        <table class="tbl" id="tbl-sales-bottle">
+          <thead><tr><th>品項名稱</th><th>累計銷量</th><th>日均銷速</th></tr></thead>
+          <tbody><tr><td colspan="3" style="text-align:center; color:var(--t3); padding:15px;">暫無數據</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">🟣 2. 核心大宗品項銷量 <span class="badge b-purple">單位：箱/組</span></div>
+        <table class="tbl" id="tbl-sales-box">
+          <thead><tr><th>品項名稱</th><th>累計銷量</th><th>日均銷速</th></tr></thead>
+          <tbody><tr><td colspan="3" style="text-align:center; color:var(--t3); padding:15px;">暫無數據</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="split-grid">
+      <div class="card">
+        <div class="card-title">🟡 3. 額外費用與資材項目 <span class="badge b-amber">資材與非核心費用</span></div>
+        <table class="tbl" id="tbl-sales-expense">
+          <thead><tr><th>項目名稱</th><th>異動數量</th></tr></thead>
+          <tbody><tr><td colspan="2" style="text-align:center; color:var(--t3); padding:15px;">暫無數據</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">🔵 4. 促銷與售後補寄統計 <span class="badge b-cyan">變動調整項目</span></div>
+        <table class="tbl" id="tbl-sales-promo">
+          <thead><tr><th>項目名稱</th><th>異動數量</th></tr></thead>
+          <tbody><tr><td colspan="2" style="text-align:center; color:var(--t3); padding:15px;">暫無數據</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -109,7 +129,7 @@ input[type="file"] { display: none; }
 
   <div id="tab-strategy" class="tab-content">
     <div class="card">
-      <div class="card-title">動態可用天數 (Days of Supply) 與日均消耗包數交叉對齊看板</div>
+      <div class="card-title">動態可用天數 (DOS) 與日均消耗包數交叉對齊看板</div>
       <table class="tbl" id="tbl-strategy-analysis">
         <thead>
           <tr>
@@ -131,6 +151,13 @@ input[type="file"] { display: none; }
 <script>
 let salesVolume = {}; 
 let salesVelocity = {}; 
+
+// 四個獨立的銷售分流儲存器，用於第一頁籤表格渲染
+let splitBottle = {};
+let splitBox = {};
+let splitExpense = {};
+let splitPromo = {};
+
 const DAYS_PASSED = 22; // 當月已過去天數基準
 
 function switchTab(evt, tabId) {
@@ -179,41 +206,84 @@ function getCoreName(str) {
 }
 
 function parseSales(dataset) {
-  salesVolume = {};
-  salesVelocity = {};
+  salesVolume = {}; salesVelocity = {};
+  splitBottle = {}; splitBox = {}; splitExpense = {}; splitPromo = {};
+  
   dataset.forEach((row, idx) => {
     if (idx < 2) return;
     let name = row[0] ? String(row[0]).trim() : '';
-    if (!name || name.includes('合計') || name.includes('按品項') || name.includes('運費') || name.includes('小卡') || name.includes('折抵')) return;
+    if (!name || name.includes('合計') || name.includes('按品項')) return;
     
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
-    if (!isNaN(qty) && qty > 0) {
-      let coreKey = getCoreName(name);
-      salesVolume[coreKey] = (salesVolume[coreKey] || 0) + qty;
+    if (isNaN(qty)) return;
+
+    // 進行分流過濾判定
+    if (name.includes('運費') || name.includes('試喝') || name.includes('手續') || name.includes('糖') || name.includes('小卡') || name.includes('DM') || name.includes('名片') || name.includes('折抵') || name.includes('紙箱') || name.includes('糖包')) {
+      splitExpense[name] = (splitExpense[name] || 0) + qty;
+      return; // 費用項目不納入產線排程計算
     }
+
+    if (qty <= 0) return;
+
+    if (name.includes('試用') || name.includes('補')) {
+      splitPromo[name] = (splitPromo[name] || 0) + qty;
+    } else if (name.includes('箱') || name.includes('組')) {
+      splitBox[name] = (splitBox[name] || 0) + qty;
+    } else {
+      splitBottle[name] = (splitBottle[name] || 0) + qty;
+    }
+
+    // 同步加總核心品項底層銷量（用於第三頁籤天數配對）
+    let coreKey = getCoreName(name);
+    salesVolume[coreKey] = (salesVolume[coreKey] || 0) + qty;
   });
+
   Object.keys(salesVolume).forEach(k => {
     salesVelocity[k] = salesVolume[k] / DAYS_PASSED;
   });
 }
 
 function renderAll() {
-  if (Object.keys(salesVelocity).length > 0) renderSalesTab();
+  if (Object.keys(salesVolume).length > 0) renderSalesTab();
   if (window.rawStockDataset) renderStockTab();
-  if (Object.keys(salesVelocity).length > 0 && window.rawStockDataset) renderStrategyTab();
+  if (Object.keys(salesVolume).length > 0 && window.rawStockDataset) renderStrategyTab();
 }
 
 function renderSalesTab() {
-  const tbody = document.querySelector('#tbl-sales-analysis tbody');
-  tbody.innerHTML = '';
-  Object.keys(salesVolume).forEach(k => {
+  // 1. 零售表
+  let tbodyBottle = document.querySelector('#tbl-sales-bottle tbody');
+  tbodyBottle.innerHTML = Object.keys(splitBottle).length ? '' : '<tr><td colspan="3">暫無數據</td></tr>';
+  Object.keys(splitBottle).forEach(k => {
     let tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-weight:700;">${k}</td>
-      <td class="mono">${salesVolume[k].toLocaleString()}</td>
-      <td class="mono" style="color:var(--blue2);">${salesVelocity[k].toFixed(1)} /天</td>
-    `;
-    tbody.appendChild(tr);
+    tr.innerHTML = `<td>${k}</td><td class="mono">${splitBottle[k]}</td><td class="mono" style="color:var(--green2);">${(splitBottle[k]/DAYS_PASSED).toFixed(1)}/天</td>`;
+    tbodyBottle.appendChild(tr);
+  });
+
+  // 2. 大宗表
+  let tbodyBox = document.querySelector('#tbl-sales-box tbody');
+  tbodyBox.innerHTML = Object.keys(splitBox).length ? '' : '<tr><td colspan="3">暫無數據</td></tr>';
+  Object.keys(splitBox).forEach(k => {
+    let tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k}</td><td class="mono">${splitBox[k]}</td><td class="mono" style="color:var(--purple2);">${(splitBox[k]/DAYS_PASSED).toFixed(1)}/天</td>`;
+    tbodyBox.appendChild(tr);
+  });
+
+  // 3. 費用資材表
+  let tbodyExpense = document.querySelector('#tbl-sales-expense tbody');
+  tbodyExpense.innerHTML = Object.keys(splitExpense).length ? '' : '<tr><td colspan="2">暫無數據</td></tr>';
+  Object.keys(splitExpense).forEach(k => {
+    let tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k}</td><td class="mono" style="color:var(--amber2);">${splitExpense[k].toLocaleString()}</td>`;
+    tbodyExpense.appendChild(tr);
+  });
+
+  // 4. 促銷補貨表
+  let tbodyPromo = document.querySelector('#tbl-sales-promo tbody');
+  tbodyPromo.innerHTML = Object.keys(splitPromo).length ? '' : '<tr><td colspan="2">暫無數據</td></tr>';
+  Object.keys(splitPromo).forEach(k => {
+    let tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k}</td><td class="mono" style="color:var(--cyan2);">${splitPromo[k]}</td>`;
+    tbodyPromo.appendChild(tr);
   });
 }
 
@@ -260,8 +330,7 @@ function renderStrategyTab() {
     let totalBoxes = (isNaN(compStockBoxes) ? 0 : compStockBoxes) + (isNaN(cbStockBoxes) ? 0 : cbStockBoxes);
     let totalSingleUnits = totalBoxes * packMultiplier;
 
-    let accumSales = 0;
-    let velocity = 0;
+    let accumSales = 0; let velocity = 0;
     let stockCore = getCoreName(rawName);
 
     Object.keys(salesVelocity).forEach(sKey => {
@@ -278,16 +347,16 @@ function renderStrategyTab() {
 
     if (velocity === 0) {
       badge = '<span class="badge b-green">無常態銷速</span>';
-      advice = '本月暫無實質出貨紀錄。';
+      advice = '庫存現狀安全。本月無銷售紀錄。';
     } else if (dos < 5) {
       badge = '<span class="badge b-red">🚨 斷貨極危</span>';
-      advice = `僅剩 ${dos.toFixed(1)} 天儲備。產線須在24小時內插單排產！`;
+      advice = `僅儲備 ${dos.toFixed(1)} 天。產線須在24小時內插單排產！`;
     } else if (dos >= 5 && dos <= 12) {
       badge = '<span class="badge b-amber">水位偏低</span>';
-      advice = `可撐 ${dos.toFixed(1)} 天。建議納入下週常態排程計畫。`;
+      advice = `可撐 ${dos.toFixed(1)} 天。建議納入下週常態排程。`;
     } else {
       badge = '<span class="badge b-green">儲備安全</span>';
-      advice = `水位充足（可撐 ${dos.toFixed(1)} 天）。產能優先讓給高風險項目。`;
+      advice = `儲備充足（可撐 ${dos.toFixed(1)} 天）。目前無斷貨風險。`;
     }
 
     let tr = document.createElement('tr');
