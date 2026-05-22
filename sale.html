@@ -58,7 +58,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">四路分流進階優化版：小卡、DM、名片、折抵皆納入非核心費用隔離</div>
+    <div class="upload-sub">四路分流優化版：紙箱、糖包等包裝耗材項目已納入非核心費用隔離</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
@@ -95,7 +95,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="chart-grid-layout">
     <div class="chart-card">
-      <div class="chart-title">📊 額外費用與資材項目 (運費/試喝/手續/糖/小卡/DM/名片/折抵) <span class="badge b-amber">費用與資材</span></div>
+      <div class="chart-title">📊 額外費用與資材項目 (運費/試喝/手續/糖/小卡/DM/名片/折抵/紙箱/糖包) <span class="badge b-amber">費用與資材</span></div>
       <div style="position:relative; height:240px;"><canvas id="expense-chart"></canvas></div>
     </div>
     
@@ -157,8 +157,8 @@ function parseAdvancedData(dataset) {
 
     if (!isNaN(amt)) totalSales += amt;
 
-    // 【新增過濾機制】：即使金額為負數（如折抵），仍要納入費用統計，故排除qty<=0的限制改在下方分流執行
-    if (pName.includes('運費') || pName.includes('試喝') || pName.includes('手續') || pName.includes('糖') || pName.includes('小卡') || pName.includes('DM') || pName.includes('名片') || pName.includes('折抵')) {
+    // 【核心過濾清單】：擴充「紙箱」與「糖包」判定
+    if (pName.includes('運費') || pName.includes('試喝') || pName.includes('手續') || pName.includes('糖') || pName.includes('小卡') || pName.includes('DM') || pName.includes('名片') || pName.includes('折抵') || pName.includes('紙箱') || pName.includes('糖包')) {
       expenseSummary[pName] = (expenseSummary[pName] || 0) + (isNaN(qty) ? 0 : qty);
       return;
     }
@@ -194,7 +194,7 @@ function parseAdvancedData(dataset) {
   renderChart('expense-chart', expenseChart, sortedExpenses.map(x=>x[0]), sortedExpenses.map(x=>x[1]), '#f59e0b', '變動數量', c => expenseChart = c);
   renderChart('promo-chart', promoChart, sortedPromos.map(x=>x[0]), sortedPromos.map(x=>x[1]), '#06b6d4', '異動數量', c => promoChart = c);
 
-  showNotification('⚡ 費用與資材項目清洗完成！');
+  showNotification('⚡ 紙箱與糖包項目已成功移至資材分類！');
 }
 
 function renderChart(canvasId, chartObj, labels, data, color, datasetLabel, setChartRef) {
