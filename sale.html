@@ -56,21 +56,21 @@ input[type="file"] { display: none; }
   </div>
 
   <div class="card">
-    <div class="card-title">🚨 鮮果多 PMC 產銷動態天數預警（規格單位與非箱數自動換算版）</div>
+    <div class="card-title">🚨 鮮果多 PMC 產銷動態天數預警（多管道銷量精準累加版）</div>
     <table class="tbl" id="strategy-table">
       <thead>
         <tr>
           <th>庫存品項名稱</th>
           <th>包裝規格</th>
-          <th>本月銷量 (包/袋/瓶)</th>
-          <th>日均消耗銷速</th>
-          <th>現有總庫存量 (換算為單包)</th>
+          <th>本月累計總銷量</th>
+          <th>綜合日均銷速</th>
+          <th>現有總庫存量 (單包/瓶)</th>
           <th>動態可用天數 (DOS)</th>
           <th>風險判定與建議決策</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td colspan="7" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳銷售明細與庫存報表，系統將自動解構規格進行實質需求消耗推算。</td></tr>
+        <tr><td colspan="7" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳銷售明細與庫存報表，系統將執行全管道數據加總推算。</td></tr>
       </tbody>
     </table>
   </div>
@@ -78,7 +78,7 @@ input[type="file"] { display: none; }
 <script>
 let salesVolume = {}; 
 let salesVelocity = {}; 
-const DAYS_PASSED = 22; // 5月已過去天數
+const DAYS_PASSED = 22; // 5月累計天數基準
 
 document.getElementById('salesFile').addEventListener('change', function(e) {
   const file = e.target.files[0];
@@ -108,7 +108,7 @@ document.getElementById('stockFile').addEventListener('change', function(e) {
   });
 });
 
-// 清洗名稱函數：提取純中文核心字眼以利交叉比對
+// 精簡核心名稱：只保留主要水果/品項中文字串
 function getCoreName(str) {
   return str.replace(/300ml-/g, '')
             .replace(/\[箱\]/g, '').replace(/\(箱\)/g, '')
@@ -131,6 +131,7 @@ function parseSales(dataset) {
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
     if (!isNaN(qty) && qty > 0) {
       let coreKey = getCoreName(name);
+      // 常態化累加：相同核心品項（如木瓜）的所有管道資料在此處完整相加
       salesVolume[coreKey] = (salesVolume[coreKey] || 0) + qty;
     }
   });
@@ -150,38 +151,35 @@ function renderStrategyTable(stockDataset) {
     let rawName = row[1] ? String(row[1]).trim() : '';
     if (!rawName || rawName === '' || rawName.includes('品項名稱')) return;
 
-    let specStr = row[2] ? String(row[2]).trim() : ''; // 規格欄，例如 "66包"、"2kg/袋"
+    let specStr = row[2] ? String(row[2]).trim() : ''; 
     
-    // 【核心換算一】：解析規格中的每箱數量。若包含"包"或"個"，提取數字；否則視為非箱數之散裝產品（基數為 1）
     let packMultiplier = 1;
     let matchUnits = specStr.match(/(\d+)(包|個|入|瓶)/);
     if (matchUnits && matchUnits[1]) {
       packMultiplier = parseInt(matchUnits[1], 10);
     }
 
-    // 整合總公司倉庫與中央廚房的箱數/組數庫存
     let compStockBoxes = parseFloat(String(row[3] || '0').replace(/,/g, ''));
     let cbStockBoxes = parseFloat(String(row[4] || '0').replace(/,/g, ''));
     let totalBoxes = (isNaN(compStockBoxes) ? 0 : compStockBoxes) + (isNaN(cbStockBoxes) ? 0 : cbStockBoxes);
 
-    // 【核心換算二】：換算為實質消耗單包/單瓶量
     let totalSingleUnits = totalBoxes * packMultiplier;
 
+    // 【終極校正點】：改用累加邏輯比對銷售量，防止多通路數據覆蓋
     let accumSales = 0;
     let velocity = 0;
     let stockCore = getCoreName(rawName);
 
-    // 交叉模糊匹配
     Object.keys(salesVelocity).forEach(sKey => {
       if (stockCore !== "" && sKey !== "") {
+        // 雙向模糊匹配成功時，進行銷量與銷速的「累加」而非覆蓋
         if (stockCore.includes(sKey) || sKey.includes(stockCore)) {
-          accumSales = salesVolume[sKey];
-          velocity = salesVelocity[sKey];
+          accumSales += salesVolume[sKey];
+          velocity += salesVelocity[sKey];
         }
       }
     });
 
-    // 【動態可用天數推算】：以實質單包庫存量除以每日消耗速度
     let dos = velocity > 0 ? (totalSingleUnits / velocity) : 999;
 
     let badge = '';
@@ -205,7 +203,7 @@ function renderStrategyTable(stockDataset) {
     tr.innerHTML = `
       <td style="font-weight:700;">${rawName}</td>
       <td style="color:var(--t2); font-family:var(--mono);">${specStr || '散裝/個別'}</td>
-      <td class="mono">${accumSales > 0 ? accumSales.toLocaleString() : '—'}</td>
+      <td class="mono" style="color:var(--amber2); font-size:13px;">${accumSales > 0 ? accumSales.toLocaleString() : '—'}</td>
       <td class="mono" style="color:var(--blue2);">${velocity > 0 ? velocity.toFixed(1) + ' /天' : '—'}</td>
       <td class="mono" style="color:var(--green2);">${totalSingleUnits.toLocaleString()}</td>
       <td class="mono" style="color:${dos < 4 ? 'var(--red2)' : 'var(--text)'}; font-size:13px;">${dos === 999 ? '—' : dos.toFixed(1) + ' 天'}</td>
