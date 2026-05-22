@@ -3,235 +3,199 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>決策執行儀表板 - 銷售報表直傳版</title>
+<title>PMC 產銷庫存戰略資訊表</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <style>
 :root{
-  --bg:#080c14;--s1:#0f1420;--s2:#161d2e;--s3:#1d263d;--s4:#243047;
-  --border:#1e2a42;--border2:#2a3858;
+  --bg:#080c14;--s1:#0f1420;--s2:#161d2e;--s3:#1d263d;
+  --border:#1e2a42;
   --blue:#3b82f6;--blue2:#60a5fa;--green:#10b981;--green2:#34d399;
   --amber:#f59e0b;--amber2:#fbbf24;--red:#ef4444;--red2:#f87171;
-  --purple:#8b5cf6;--purple2:#a78bfa;--cyan:#06b6d4;--cyan2:#22d3ee;
   --text:#f1f5f9;--t2:#94a3b8;--t3:#475569;
   --font:'Noto Sans TC',sans-serif;--mono:'DM Mono',monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;padding:20px;}
 
-.upload-container {
-  background: var(--s1);
-  border: 2px dashed var(--blue);
-  border-radius: 10px;
-  padding: 30px;
-  text-align: center;
-  margin-bottom: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.upload-container:hover { background: var(--s2); border-color: var(--green); }
-.upload-title { font-size: 16px; font-weight: 700; color: var(--blue2); margin-bottom: 5px; }
-.upload-sub { color: var(--t3); font-size: 11px; }
-#fileInput { display: none; }
+/* 雙上傳區區塊 */
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.upload-box { background: var(--s1); border: 2px dashed var(--blue); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; }
+.upload-box:hover { background: var(--s2); }
+.u-title { font-size: 14px; font-weight: 700; color: var(--blue2); margin-bottom: 4px; }
+.u-sub { color: var(--t3); font-size: 11px; }
+input[type="file"] { display: none; }
 
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
-.kpi{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:20px;position:relative;}
-.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:10px 10px 0 0}
-.kpi.blue::before{background:var(--blue)}.kpi.green::before{background:var(--green)}
-.kpi.amber::before{background:var(--amber)}.kpi.red::before{background:var(--red)}
-.kpi-lbl{font-size:11px;color:var(--t3);margin-bottom:8px;letter-spacing:.5px}
-.kpi-val{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
+/* 戰略看板 */
+.card { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+.card-title { font-size: 14px; font-weight: 700; color: var(--t2); margin-bottom: 15px; border-left: 3px solid var(--blue); padding-left: 8px; }
 
-.chart-grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-.chart-card { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
-.chart-title { font-size: 13px; font-weight: 700; color: var(--t2); margin-bottom: 15px; display: flex; justify-content: space-between; }
-.badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
-.b-green { background: rgba(16,185,129,0.15); color: var(--green2); }
-.b-purple { background: rgba(139,92,246,0.15); color: var(--purple2); }
-.b-amber { background: rgba(245,158,11,0.15); color: var(--amber2); }
-.b-cyan { background: rgba(6,182,212,0.15); color: var(--cyan2); }
+/* 表格樣式 */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th { background: var(--s2); padding: 10px; text-align: left; color: var(--t2); font-weight: 700; }
+.tbl td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.mono { font-family: var(--mono); font-weight: 700; }
+
+/* 狀態標籤 */
+.badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.b-red { background: rgba(239,68,68,0.2); color: var(--red2); }
+.b-amber { background: rgba(245,158,11,0.2); color: var(--amber2); }
+.b-green { background: rgba(16,185,129,0.2); color: var(--green2); }
 </style>
 </head>
 <body>
 
-  <div class="upload-container" onclick="document.getElementById('fileInput').click()">
-    <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">四路分流優化版：紙箱、糖包等包裝耗材項目已納入非核心費用隔離</div>
-    <input type="file" id="fileInput" accept=".csv">
-  </div>
-
-  <div class="kpi-grid">
-    <div class="kpi blue">
-      <div class="kpi-lbl">📦 本月銷貨總金額 (NT$)</div>
-      <div class="kpi-val" id="val-sales">NT$ 0</div>
+  <div class="upload-grid">
+    <div class="upload-box" onclick="document.getElementById('salesFile').click()">
+      <div class="u-title">第一步：📥 拖入「億看 ERP 銷貨明細.csv」</div>
+      <div class="u-sub" id="lbl-sales">尚未讀取銷速資料</div>
+      <input type="file" id="salesFile" accept=".csv">
     </div>
-    <div class="kpi green">
-      <div class="kpi-lbl">🎯 實際零售總量 (瓶/袋)</div>
-      <div class="kpi-val" id="val-bottle-orders">0 單位</div>
-    </div>
-    <div class="kpi purple">
-      <div class="kpi-lbl">📦 實際大宗總量 (箱/組)</div>
-      <div class="kpi-val" id="val-box-orders">0 箱/組</div>
-    </div>
-    <div class="kpi red">
-      <div class="kpi-lbl">📅 報表數據月份</div>
-      <div class="kpi-val" id="val-month">未讀取</div>
+    <div class="upload-box" onclick="document.getElementById('stockFile').click()">
+      <div class="u-title">第二步：📥 拖入「廠內成品庫存表.csv」</div>
+      <div class="u-sub" id="lbl-stock">尚未讀取現有庫存</div>
+      <input type="file" id="stockFile" accept=".csv">
     </div>
   </div>
 
-  <div class="chart-grid-layout">
-    <div class="chart-card">
-      <div class="chart-title">📊 零售品項銷量排行 <span class="badge b-green">單位：瓶/袋</span></div>
-      <div style="position:relative; height:240px;"><canvas id="bottle-chart"></canvas></div>
-    </div>
-    
-    <div class="chart-card">
-      <div class="chart-title">📊 大宗品項銷量排行 <span class="badge b-purple">單位：箱/組</span></div>
-      <div style="position:relative; height:240px;"><canvas id="box-chart"></canvas></div>
-    </div>
-  </div>
-
-  <div class="chart-grid-layout">
-    <div class="chart-card">
-      <div class="chart-title">📊 額外費用與資材項目 (運費/試喝/手續/糖/小卡/DM/名片/折抵/紙箱/糖包) <span class="badge b-amber">費用與資材</span></div>
-      <div style="position:relative; height:240px;"><canvas id="expense-chart"></canvas></div>
-    </div>
-    
-    <div class="chart-card">
-      <div class="chart-title">📊 促銷與售後補寄統計 (試用/補) <span class="badge b-cyan">變動調整</span></div>
-      <div style="position:relative; height:240px;"><canvas id="promo-chart"></canvas></div>
-    </div>
+  <div class="card">
+    <div class="card-title">🚨 PMC 產銷平衡與斷料動態預警決策看板</div>
+    <table class="tbl" id="strategy-table">
+      <thead>
+        <tr>
+          <th>品項名稱</th>
+          <th>當月累計銷量</th>
+          <th>每日平均銷速 (瓶)</th>
+          <th>目前廠內庫存</th>
+          <th>動態安全天數 (DOS)</th>
+          <th>戰略風險判定與建議決策</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="6" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳左側「銷售明細」與右側「庫存現況」檔案，系統將自動啟動動態決策推演。</td></tr>
+      </tbody>
+    </table>
   </div>
 
 <script>
-let bottleChart = null;
-let boxChart = null;
-let expenseChart = null;
-let promoChart = null;
+let globalSalesVelocity = {}; // 記錄各品項的日均銷速
+let globalAccumulatedQty = {}; // 記錄累計銷量
 
-document.getElementById('fileInput').addEventListener('change', function(e) {
+// 監聽銷售檔案
+document.getElementById('salesFile').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
-
+  
   Papa.parse(file, {
     header: false,
     skipEmptyLines: true,
     complete: function(results) {
-      parseAdvancedData(results.data);
+      calculateSalesVelocity(results.data);
+      document.getElementById('lbl-sales').textContent = "✅ 銷速解析成功，已鎖定品項耗速";
+      document.getElementById('lbl-sales').style.color = "var(--green2)";
     }
   });
 });
 
-function parseAdvancedData(dataset) {
-  if (dataset.length < 2) return;
-
-  let totalSales = 0;
-  let totalBottles = 0;
-  let totalBoxes = 0;
+// 監聽庫存檔案
+document.getElementById('stockFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
   
-  let bottleSummary = {};
-  let boxSummary = {};
-  let expenseSummary = {};
-  let promoSummary = {};
-  let detectedMonth = "未知";
+  Papa.parse(file, {
+    header: false,
+    skipEmptyLines: true,
+    complete: function(results) {
+      matchStockAndRender(results.data);
+      document.getElementById('lbl-stock').textContent = "✅ 庫存對齊成功，已產出戰略建議";
+      document.getElementById('lbl-stock').style.color = "var(--green2)";
+    }
+  });
+});
 
-  // 解析日期
-  let firstRowStr = String(dataset[0][0] || '');
-  let dateMatches = firstRowStr.match(/\d{4}\/\d{2}\/\d{2}/g);
-  if (dateMatches && dateMatches.length >= 2) {
-    detectedMonth = dateMatches[1].substring(0, 7).replace(/\//g, '-');
-  } else if (dateMatches && dateMatches.length === 1) {
-    detectedMonth = dateMatches[0].substring(0, 7).replace(/\//g, '-');
-  }
+// 解析銷售速度
+function calculateSalesVelocity(dataset) {
+  globalSalesVelocity = {};
+  globalAccumulatedQty = {};
+  
+  // 預設當月已過去 22 天（實務上可改為動態計算）
+  const daysPassed = 22; 
 
   dataset.forEach((row, index) => {
     if (index < 2) return;
-
     let pName = row[0] ? String(row[0]).trim() : '';
-    if (!pName || pName === '' || pName.includes('合計') || pName.includes('按品項')) return;
+    if (!pName || pName === '' || pName.includes('合計') || pName.includes('按品項') || pName.includes('運費') || pName.includes('小卡') || pName.includes('折抵')) return;
 
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
-    let amt = parseFloat(String(row[4] || '0').replace(/,/g, ''));
-
-    if (!isNaN(amt)) totalSales += amt;
-
-    // 【核心過濾清單】：擴充「紙箱」與「糖包」判定
-    if (pName.includes('運費') || pName.includes('試喝') || pName.includes('手續') || pName.includes('糖') || pName.includes('小卡') || pName.includes('DM') || pName.includes('名片') || pName.includes('折抵') || pName.includes('紙箱') || pName.includes('糖包')) {
-      expenseSummary[pName] = (expenseSummary[pName] || 0) + (isNaN(qty) ? 0 : qty);
-      return;
+    if (!isNaN(qty) && qty > 0) {
+      globalAccumulatedQty[pName] = (globalAccumulatedQty[pName] || 0) + qty;
     }
+  });
 
-    if (isNaN(qty) || qty <= 0) return;
+  // 計算日均消耗速度
+  Object.keys(globalAccumulatedQty).forEach(pName => {
+    globalSalesVelocity[pName] = globalAccumulatedQty[pName] / daysPassed;
+  });
+}
 
-    if (pName.includes('試用') || pName.includes('補')) {
-      promoSummary[pName] = (promoSummary[pName] || 0) + qty;
-    } else if (pName.includes('箱') || pName.includes('組')) {
-      totalBoxes += qty;
-      boxSummary[pName] = (boxSummary[pName] || 0) + qty;
+// 隔空對齊庫存並推演戰略建議
+function matchStockAndRender(stockDataset) {
+  const tbody = document.querySelector('#strategy-table tbody');
+  tbody.innerHTML = '';
+
+  let hasData = false;
+
+  stockDataset.forEach((row, index) => {
+    // 假設庫存表結構：[0] 品項名稱, [1] 現有庫存量
+    let pName = row[0] ? String(row[0]).trim() : '';
+    if (!pName || pName === '' || pName.includes('品項') || pName.includes('合計')) return;
+
+    let stockQty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
+    if (isNaN(stockQty)) return;
+
+    hasData = true;
+
+    // 提取對應的銷售數據
+    let accumQty = globalAccumulatedQty[pName] || 0;
+    let velocity = globalSalesVelocity[pName] || 0;
+    
+    // 計算可用天數 (DOS)
+    let dos = velocity > 0 ? (stockQty / velocity) : 999; 
+
+    // 戰略風險判定與決策建議邏輯
+    let statusBadge = '';
+    let recommendation = '';
+
+    if (dos === 999) {
+      statusBadge = '<span class="badge b-green">呆滯無銷量</span>';
+      recommendation = '⚠️ 該品項本月無出貨紀錄，現有庫存屬於呆滯料，建議業務降價出清，停止排產。';
+    } else if (dos < 3) {
+      statusBadge = '<span class="badge b-red">🚨 急需插單</span>';
+      recommendation = `🔥 庫存僅能撐 ${dos.toFixed(1)} 天。產線必須在 24 小時內插單排產，採購應立即確認原料。`;
+    } else if (dos >= 3 && dos <= 7) {
+      statusBadge = '<span class="badge b-amber">注意進料</span>';
+      recommendation = `正常消耗中。建議安排在下週正常排程，採購需按前置時間（Lead Time）常態進料。`;
     } else {
-      totalBottles += qty;
-      bottleSummary[pName] = (bottleSummary[pName] || 0) + qty;
+      statusBadge = '<span class="badge b-green">安全儲備</span>';
+      recommendation = `庫存充足（可撐 ${dos.toFixed(1)} 天）。產線暫不排產，產能調配給其他高風險紅燈品項。`;
     }
+
+    let tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:700;">${pName}</td>
+      <td class="mono">${accumQty.toLocaleString()}</td>
+      <td class="mono" style="color:var(--blue2);">${velocity.toFixed(1)}</td>
+      <td class="mono" style="color:var(--green2);">${stockQty.toLocaleString()}</td>
+      <td class="mono" style="color:${dos < 3 ? 'var(--red2)' : 'var(--text)'}">${dos === 999 ? '—' : dos.toFixed(1) + ' 天'}</td>
+      <td><div style="display:flex; align-items:center; gap:8px;">${statusBadge} <span>${recommendation}</span></div></td>
+    `;
+    tbody.appendChild(tr);
   });
 
-  // 更新數據卡片文字
-  document.getElementById('val-sales').textContent = 'NT$ ' + totalSales.toLocaleString();
-  document.getElementById('val-bottle-orders').textContent = totalBottles.toLocaleString() + ' 單位';
-  document.getElementById('val-box-orders').textContent = totalBoxes.toLocaleString() + ' 箱/組';
-  document.getElementById('val-month').textContent = detectedMonth;
-
-  // 資料排序
-  let sortedBottles = Object.entries(bottleSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
-  let sortedBoxes = Object.entries(boxSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
-  let sortedExpenses = Object.entries(expenseSummary).filter(x => Math.abs(x[1]) > 0).sort((b, a) => Math.abs(a[1]) - Math.abs(b[1]));
-  let sortedPromos = Object.entries(promoSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
-
-  // 渲染四個獨立圖表
-  renderChart('bottle-chart', bottleChart, sortedBottles.map(x=>x[0]), sortedBottles.map(x=>x[1]), '#10b981', '出貨數量', c => bottleChart = c);
-  renderChart('box-chart', boxChart, sortedBoxes.map(x=>x[0]), sortedBoxes.map(x=>x[1]), '#8b5cf6', '大宗數量', c => boxChart = c);
-  renderChart('expense-chart', expenseChart, sortedExpenses.map(x=>x[0]), sortedExpenses.map(x=>x[1]), '#f59e0b', '變動數量', c => expenseChart = c);
-  renderChart('promo-chart', promoChart, sortedPromos.map(x=>x[0]), sortedPromos.map(x=>x[1]), '#06b6d4', '異動數量', c => promoChart = c);
-
-  showNotification('⚡ 紙箱與糖包項目已成功移至資材分類！');
-}
-
-function renderChart(canvasId, chartObj, labels, data, color, datasetLabel, setChartRef) {
-  const ctx = document.getElementById(canvasId).getContext('2d');
-  if (chartObj) { chartObj.destroy(); }
-
-  let newChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: datasetLabel,
-        data: data,
-        backgroundColor: color,
-        borderRadius: 5
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-        y: { grid: { color: '#1e2a42' }, ticks: { color: '#94a3b8' } }
-      }
-    }
-  });
-  
-  setChartRef(newChart);
-}
-
-function showNotification(msg) {
-  const el = document.createElement('div');
-  el.style.cssText='position:fixed;bottom:20px;right:20px;background:#10b981;color:#0b0e18;padding:12px 24px;border-radius:8px;font-weight:700;font-size:12px;z-index:999;';
-  el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
+  if (!hasData) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--red2);">庫存對齊失敗，請確認廠內庫存表的品項名稱是否正確。</td></tr>`;
+  }
 }
 </script>
 </body>
