@@ -20,8 +20,6 @@
     --accent-amber: #ffb800;
     --accent-red: #ff4646;
     --accent-purple: #d946ef;
-    
-    /* 核心基礎字體大小設定，由 JS 動態控制此變數 */
     --base-font-size: 13px;
 }
 
@@ -34,7 +32,6 @@ body {
     font-size: var(--base-font-size);
 }
 
-/* 頂部控制面板：整合標題與字體工具 */
 .dashboard-header {
     margin-bottom: 24px;
     border-bottom: 2px solid var(--border-color);
@@ -51,7 +48,6 @@ body {
     text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
 }
 
-/* 字體放大縮小控制按鈕組 */
 .font-control-panel {
     display: flex;
     align-items: center;
@@ -81,9 +77,6 @@ body {
     border-color: var(--accent-blue);
     color: var(--accent-blue);
 }
-.font-btn:active {
-    background: var(--border-color);
-}
 #font-size-indicator {
     font-family: 'Roboto Mono', monospace;
     color: var(--accent-green);
@@ -92,7 +85,6 @@ body {
     text-align: center;
 }
 
-/* 上傳區塊 */
 .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
 .upload-box {
     background: var(--bg-card);
@@ -111,7 +103,6 @@ body {
 .u-sub { font-family: 'Roboto Mono', monospace; color: var(--text-secondary); font-size: calc(var(--base-font-size) * 0.9); }
 input[type="file"] { display: none; }
 
-/* 儀表板分頁標籤 */
 .tab-container { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
 .tab-btn {
     background: transparent;
@@ -135,7 +126,6 @@ input[type="file"] { display: none; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* 數據卡片結構 */
 .card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -157,7 +147,6 @@ input[type="file"] { display: none; }
 }
 .split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-/* 表格科幻樣式 */
 .tbl { width: 100%; border-collapse: collapse; text-align: left; }
 .tbl th {
     background: var(--bg-header);
@@ -172,7 +161,6 @@ input[type="file"] { display: none; }
 .tbl td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: var(--base-font-size); vertical-align: middle; }
 .tbl tr:hover { background: rgba(20, 27, 50, 0.4); }
 
-/* 數據字體與發光標籤 */
 .mono { font-family: 'Roboto Mono', monospace; font-weight: 700; }
 .badge {
     display: inline-block;
@@ -199,7 +187,6 @@ input[type="file"] { display: none; }
 
   <div class="dashboard-header">
     <h1>PMC PRODUCTION & SALES INTEGRATED SYSTEM</h1>
-    
     <div class="font-control-panel">
         <span class="font-lbl">FONT SIZE:</span>
         <button class="font-btn" onclick="adjustFontSize(-1)">A -</button>
@@ -273,10 +260,11 @@ input[type="file"] { display: none; }
             <th>總公司倉庫 (箱)</th>
             <th>中央廚房 (箱)</th>
             <th>合併總箱數</th>
+            <th style="color:var(--accent-green);">合併總包數</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td colspan="5" style="text-align:center; color:var(--text-secondary); padding:20px;">NO DATA</td></tr>
+          <tr><td colspan="6" style="text-align:center; color:var(--text-secondary); padding:20px;">NO DATA</td></tr>
         </tbody>
       </table>
     </div>
@@ -308,14 +296,11 @@ let salesVolume = {}; let salesVelocity = {};
 let splitBottle = {}; let splitBox = {}; let splitExpense = {}; let splitPromo = {};
 const DAYS_PASSED = 22; 
 
-// 【新技術功能】：字態基礎大小調節函數
 let currentFontSize = 13;
 function adjustFontSize(delta) {
     currentFontSize += delta;
-    if (currentFontSize < 10) currentFontSize = 10; // 保底限制防止字體縮到消失
-    if (currentFontSize > 24) currentFontSize = 24; // 上限防止排版爆開
-    
-    // 透過 CSS 變數全域改寫網頁大小比例
+    if (currentFontSize < 10) currentFontSize = 10;
+    if (currentFontSize > 24) currentFontSize = 24;
     document.documentElement.style.setProperty('--base-font-size', currentFontSize + 'px');
     document.getElementById('font-size-indicator').textContent = currentFontSize + 'px';
 }
@@ -450,6 +435,12 @@ function renderStockTab() {
     let cbStock = parseFloat(String(row[4] || '0').replace(/,/g, ''));
     let totalBoxes = (isNaN(compStock) ? 0 : compStock) + (isNaN(cbStock) ? 0 : cbStock);
 
+    // 解析規格並換算為總包數
+    let packMultiplier = 1;
+    let matchUnits = specStr.match(/(\d+)(包|個|入|瓶)/);
+    if (matchUnits && matchUnits[1]) packMultiplier = parseInt(matchUnits[1], 10);
+    let totalSingleUnits = totalBoxes * packMultiplier;
+
     let tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-weight:700; color:var(--accent-blue);">${rawName}</td>
@@ -457,6 +448,7 @@ function renderStockTab() {
       <td class="mono">${isNaN(compStock)?0:compStock.toLocaleString()}</td>
       <td class="mono">${isNaN(cbStock)?0:cbStock.toLocaleString()}</td>
       <td class="mono" style="color:var(--accent-green);">${totalBoxes.toLocaleString()}</td>
+      <td class="mono" style="color:var(--accent-blue); font-size:1.05em;">${totalSingleUnits.toLocaleString()}</td>
     `;
     tbody.appendChild(tr);
   });
