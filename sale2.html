@@ -104,6 +104,13 @@ input[type="file"] { display: none; }
 .tbl td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: var(--base-font-size); vertical-align: middle; }
 .tbl tr:hover { background: rgba(20, 27, 50, 0.4); }
 
+/* BOM 設定頁面專用樣式 */
+.bom-config-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.bom-item-pair { display: flex; align-items: center; gap: 8px; }
+.bom-select {
+    background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-primary);
+    padding: 4px 8px; border-radius: 4px; font-size: 12px;
+}
 .bom-input {
     background: var(--bg-main); border: 1px solid var(--border-color); color: var(--accent-green);
     font-family: 'Roboto Mono', monospace; padding: 4px 8px; width: 60px; text-align: center; border-radius: 4px;
@@ -153,6 +160,7 @@ input[type="file"] { display: none; }
     <button class="tab-btn" onclick="switchTab(event, 'tab-strategy')">🚨 DEMAND & SCHEDULING</button>
   </div>
 
+  <!-- 頁籤一 -->
   <div id="tab-sales" class="tab-content active">
     <div class="split-grid">
       <div class="card">
@@ -188,6 +196,7 @@ input[type="file"] { display: none; }
     </div>
   </div>
 
+  <!-- 頁籤二 -->
   <div id="tab-stock" class="tab-content">
     <div class="card">
       <div class="card-title">兩大實體倉庫即時庫存 (總公司 + 中央廚房)</div>
@@ -209,66 +218,28 @@ input[type="file"] { display: none; }
     </div>
   </div>
 
+  <!-- 頁籤三：動態組合配方自由選配區 -->
   <div id="tab-bom" class="tab-content">
     <div class="card">
-      <div class="card-title">⚙️ 合一組 / 綜合組合動態配方拆解設定 (BOM Config Panel) <span class="badge b-amber">生管核心主控</span></div>
+      <div class="card-title">⚙️ 億看銷貨單「組裝品項」矩陣解構面板 (BOM Explosion Matrix) <span class="badge b-purple">多選單動態對齊</span></div>
       <p style="color:var(--text-secondary); margin-bottom: 15px; line-height: 1.5;">
-        💡 <b>實務說明：</b> 當億看銷售明細中出現含有「組」或「合一」的訂單時，系統將依據您下方填寫的單包數量，自動將其爆炸拆解（Explode）並加總至頁籤四的核心單品銷速中。<b>若該產品不在目前的組合內，請直接將數量設為 0。</b>
+        💡 <b>排產操作指引：</b> 系統已為您自動抓取左側所有帶有「組」的銷售品項。請在右側選單中，自由勾選對齊其內含的單品種類，並輸入單組內含的實質包數。設定完成後將自動穿透累加至最終排產天數。
       </p>
-      <table class="tbl">
+      <table class="tbl" id="tbl-bom-matrix">
         <thead>
           <tr>
-            <th>億看 ERP 識別品項</th>
-            <th>拆解配對單品目標</th>
-            <th>單組內含包數 (可自由更改)</th>
+            <th style="width: 45%;">左側：報表偵測到之「合一組品項」</th>
+            <th style="width: 55%;">右側：自由選配內含單品與包數 (可支援到 4 種單品組合)</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組」之大宗品項</td>
-            <td>木瓜</td>
-            <td><input type="number" id="bom-木瓜" class="bom-input" value="2" onchange="renderAll()"> 包</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組」之大宗品項</td>
-            <td>綠果昔</td>
-            <td><input type="number" id="bom-綠果昔" class="bom-input" value="2" onchange="renderAll()"> 包</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組」之大宗品項</td>
-            <td>酪梨香蕉</td>
-            <td><input type="number" id="bom-酪梨香蕉" class="bom-input" value="2" onchange="renderAll()"> 包</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組`」之大宗品項</td>
-            <td>香芒綜合 / 愛文芒果</td>
-            <td><input type="number" id="bom-芒果" class="bom-input" value="2" onchange="renderAll()"> 包</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組」之大宗品項</td>
-            <td>人氣草莓</td>
-            <td><input type="number" id="bom-草莓" class="bom-input" value="2" onchange="renderAll()"> 包</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組」之大宗品項</td>
-            <td>野莓 / 野莓綜合</td>
-            <td><input type="number" id="bom-野莓" class="bom-input" value="2" onchange="renderAll()"> 包</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組」之大宗品項</td>
-            <td>翡翠(奇異果)</td>
-            <td><input type="number" id="bom-奇異果" class="bom-input" value="0" onchange="renderAll()"> 包</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700; color:var(--accent-purple);">所有帶有「組」之大宗品項</td>
-            <td>火龍果綜合</td>
-            <td><input type="number" id="bom-火龍果" class="bom-input" value="0" onchange="renderAll()"> 包</td>
-          </tr>
+          <tr><td colspan="2" style="text-align:center; color:var(--text-secondary); padding:30px;">請先上傳銷售單明細，系統將自動解析不固定規格之組合。</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
+  <!-- 頁籤四 -->
   <div id="tab-strategy" class="tab-content">
     <div class="card">
       <div class="card-title">實質消耗可用天數 (DOS) 與日均消耗包數決策看盤</div>
@@ -292,9 +263,12 @@ input[type="file"] { display: none; }
 
 <script>
 let salesVolume = {}; let salesVelocity = {};
-let comboTotalQty = 0; // 當月累計賣出的組合包總箱/組數
+let detectedCombos = {}; // 動態儲存所有偵測到的組合包項目與其銷售總量
 let splitBottle = {}; let splitBox = {}; let splitExpense = {}; let splitPromo = {};
 const DAYS_PASSED = 22; 
+
+// 預設下拉選單內置的常態單品核心清單
+const AVAILABLE_SINGLE_ITEMS = ["木瓜", "綠果昔", "酪梨香蕉", "香芒綜合", "愛文芒果", "人氣草莓", "野莓", "翡翠(奇異果)", "火龍果綜合"];
 
 let currentFontSize = 13;
 function adjustFontSize(delta) {
@@ -320,6 +294,7 @@ document.getElementById('salesFile').addEventListener('change', function(e) {
       parseSales(results.data);
       document.getElementById('lbl-sales').textContent = "ONLINE / DATA LOCKED";
       document.getElementById('lbl-sales').style.color = "var(--accent-green)";
+      buildBomInterface(); // 自動建立左側組合與右側選單
       renderAll();
     }
   });
@@ -349,7 +324,7 @@ function getCoreName(str) {
 }
 
 function parseSales(dataset) {
-  salesVolume = {}; salesVelocity = {}; comboTotalQty = 0;
+  salesVolume = {}; salesVelocity = {}; detectedCombos = {};
   splitBottle = {}; splitBox = {}; splitExpense = {}; splitPromo = {};
   
   dataset.forEach((row, idx) => {
@@ -358,26 +333,27 @@ function parseSales(dataset) {
     if (!name || name.includes('合計') || name.includes('按品項')) return;
     
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
-    if (isNaN(qty)) return;
+    if (isNaN(qty) || qty <= 0) return;
 
     if (name.includes('運費') || name.includes('試喝') || name.includes('手續') || name.includes('糖') || name.includes('小卡') || name.includes('DM') || name.includes('名片') || name.includes('折抵') || name.includes('紙箱') || name.includes('糖包')) {
       splitExpense[name] = (splitExpense[name] || 0) + qty;
       return;
     }
-    if (qty <= 0) return;
 
     if (name.includes('試用') || name.includes('補')) {
       splitPromo[name] = (splitPromo[name] || 0) + qty;
     } else if (name.includes('箱') || name.includes('組')) {
       splitBox[name] = (splitBox[name] || 0) + qty;
+      
+      // 【核心抓取邏輯】：只要名稱包含「組」，自動歸入動態 BOM 矩陣左側清單
       if (name.includes('組')) {
-        comboTotalQty += qty; // 精準加總所有組合包的銷售總數
+          detectedCombos[name] = (detectedCombos[name] || 0) + qty;
       }
     } else {
       splitBottle[name] = (splitBottle[name] || 0) + qty;
     }
 
-    // 常態非組合包銷量獨立紀錄
+    // 標準非組合單品累加
     if (!name.includes('組')) {
         let coreKey = getCoreName(name);
         salesVolume[coreKey] = (salesVolume[coreKey] || 0) + qty;
@@ -385,46 +361,115 @@ function parseSales(dataset) {
   });
 }
 
+// 【動態生成頁籤三介面】：左側放合一組品項，右側生成選單與輸入框
+function buildBomInterface() {
+    const tbody = document.getElementById('tbl-bom-matrix').querySelector('tbody');
+    tbody.innerHTML = '';
+
+    let comboKeys = Object.keys(detectedCombos);
+    if (comboKeys.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:var(--text-secondary);">未在此銷售明細中偵測到任何含有「組」的項目。</td></tr>`;
+        return;
+    }
+
+    comboKeys.forEach((comboName, index) => {
+        let tr = document.createElement('tr');
+        
+        // 左側：組合品項名稱與當月賣出箱數
+        let leftTd = `<td>
+            <div style="font-weight:700; color:var(--accent-purple); margin-bottom:4px;">${comboName}</div>
+            <div style="font-size:11px; color:var(--text-secondary);">本月累計銷量：<span class="mono" style="color:var(--accent-amber);">${detectedCombos[comboName]}</span> 組</div>
+        </td>`;
+
+        // 右側：預設生成 4 組下拉選單對齊格，並貼心地針對常見文字進行初始化
+        let rightTd = `<td><div class="bom-config-row">`;
+        
+        for (let i = 1; i <= 4; i++) {
+            let defaultSelectHtml = `<select id="combo-${index}-item-${i}" class="bom-select" onchange="renderAll()">
+                <option value="">-- 請選擇品項 --</option>`;
+            AVAILABLE_SINGLE_ITEMS.forEach(single => {
+                // 貼心自動對齊：如果是六合一預設，前幾格幫忙先選好基本款
+                let selected = "";
+                if (comboName.includes("6種") || comboName.includes("合一")) {
+                    if (i === 1 && single === "木瓜") selected = "selected";
+                    if (i === 2 && single === "綠果昔") selected = "selected";
+                    if (i === 3 && single === "酪梨香蕉") selected = "selected";
+                    if (i === 4 && single === "香芒綜合") selected = "selected";
+                }
+                defaultSelectHtml += `<option value="${single}" ${selected}>${single}</option>`;
+            });
+            defaultSelectHtml += `</select>`;
+
+            // 預設包數初始化：若名稱寫明各2包，預設填2；若包含18包，預設填18
+            let defaultPackValue = 0;
+            if (comboName.includes("各2包") || comboName.includes("合一")) defaultPackValue = 2;
+            if (comboName.includes("18包")) defaultPackValue = 18;
+
+            rightTd += `
+                <div class="bom-item-pair">
+                    <span style="color:var(--text-secondary); font-size:11px;">配項 ${i}：</span>
+                    ${defaultSelectHtml}
+                    <input type="number" id="combo-${index}-qty-${i}" class="bom-input" value="${defaultPackValue}" onchange="renderAll()"> 
+                    <span style="color:var(--text-secondary); font-size:11px;">包</span>
+                </div>`;
+        }
+        rightTd += `</div></td>`;
+
+        tr.innerHTML = leftTd + rightTd;
+        tbody.appendChild(tr);
+    });
+}
+
 function renderAll() {
-  // 【動態矩陣重組】：根據 UI 上的實質設定進行配方爆炸
-  if (Object.keys(salesVolume).length > 0 || comboTotalQty > 0) {
+  if (Object.keys(salesVolume).length > 0 || Object.keys(detectedCombos).length > 0) {
       salesVelocity = {};
       
-      // 讀取 UI 輸入框數值
-      let bomMatrix = {
-          '木瓜': parseFloat(document.getElementById('bom-木瓜').value) || 0,
-          '綠果昔': parseFloat(document.getElementById('bom-綠果昔').value) || 0,
-          '酪梨香蕉': parseFloat(document.getElementById('bom-酪梨香蕉').value) || 0,
-          '香芒綜合': parseFloat(document.getElementById('bom-專屬欄位無用，由芒果統一控制') || 0), // 保底防錯
-          '愛文芒果': parseFloat(document.getElementById('bom-芒果').value) || 0,
-          '人氣草莓': parseFloat(document.getElementById('bom-草莓').value) || 0,
-          '野莓': parseFloat(document.getElementById('bom-野莓').value) || 0,
-          '翡翠(奇異果)': parseFloat(document.getElementById('bom-奇異果').value) || 0,
-          '火龍果綜合': parseFloat(document.getElementById('bom-火龍果').value) || 0
-      };
-      
-      // 特殊別名綁定過濾
-      bomMatrix['香芒綜合'] = bomMatrix['愛文芒果']; 
-      bomMatrix['野莓綜合'] = bomMatrix['野莓'];
-
-      // 將原本的常態銷量，加上組合拆解量
+      // 1. 先將基礎單品零售量灌入計算器
+      let totalAggregatedPacks = {};
       Object.keys(salesVolume).forEach(k => {
-          let multiplier = bomMatrix[k] || 0;
-          let extraQty = comboTotalQty * multiplier;
-          salesVelocity[k] = ((salesVolume[k] || 0) + extraQty) / DAYS_PASSED;
+          totalAggregatedPacks[k] = salesVolume[k];
       });
 
-      // 防漏機制：若某品項本月沒有零售散單，僅存在於組合包內，強制建立銷速
-      Object.keys(bomMatrix).forEach(k => {
-          if (!salesVelocity[k] && bomMatrix[k] > 0) {
-              salesVelocity[k] = (comboTotalQty * bomMatrix[k]) / DAYS_PASSED;
+      // 2. 遍歷左側所有的組合包，提取右側的下拉選單與包數，進行實時乘數加總
+      Object.keys(detectedCombos).forEach((comboName, index) => {
+          let comboSalesQty = detectedCombos[comboName];
+
+          for (let i = 1; i <= 4; i++) {
+              let selectEl = document.getElementById(`combo-${index}-item-${i}`);
+              let qtyEl = document.getElementById(`combo-${index}-qty-${i}`);
+              
+              if (selectEl && qtyEl) {
+                  let targetedSingleItem = selectEl.value;
+                  let packsPerCombo = parseFloat(qtyEl.value) || 0;
+
+                  if (targetedSingleItem !== "" && packsPerCombo > 0) {
+                      // 標準化芒果字串關聯
+                      let finalKey = targetedSingleItem;
+                      if (finalKey === "香芒綜合" || finalKey === "愛文芒果") {
+                          finalKey = "愛文芒果"; // 庫存統一對齊名稱
+                      }
+                      
+                      // 爆炸加總：組合包銷量 × 您指定的包數
+                      totalAggregatedPacks[finalKey] = (totalAggregatedPacks[finalKey] || 0) + (comboSalesQty * packsPerCombo);
+                      
+                      // 別名保底同步
+                      if (finalKey === "愛文芒果") {
+                          totalAggregatedPacks["香芒綜合"] = totalAggregatedPacks["愛文芒果"];
+                      }
+                  }
+              }
           }
+      });
+
+      // 3. 轉化為日均銷速
+      Object.keys(totalAggregatedPacks).forEach(k => {
+          salesVelocity[k] = totalAggregatedPacks[k] / DAYS_PASSED;
       });
   }
 
-  if (Object.keys(salesVolume).length > 0 || comboTotalQty > 0) renderSalesTab();
+  if (Object.keys(salesVolume).length > 0 || Object.keys(detectedCombos).length > 0) renderSalesTab();
   if (window.rawStockDataset) renderStockTab();
-  if ((Object.keys(salesVolume).length > 0 || comboTotalQty > 0) && window.rawStockDataset) renderStrategyTab();
+  if ((Object.keys(salesVolume).length > 0 || Object.keys(detectedCombos).length > 0) && window.rawStockDataset) renderStrategyTab();
 }
 
 function renderSalesTab() {
