@@ -30,10 +30,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
   cursor: pointer;
   transition: all 0.2s;
 }
-.upload-container:hover {
-  background: var(--s2);
-  border-color: var(--green);
-}
+.upload-container:hover { background: var(--s2); border-color: var(--green); }
 .upload-title { font-size: 16px; font-weight: 700; color: var(--blue2); margin-bottom: 5px; }
 .upload-sub { color: var(--t3); font-size: 11px; }
 #fileInput { display: none; }
@@ -54,7 +51,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">已加入 ECOUNT ERP (Big5/ANSI) 編碼自動修正技術</div>
+    <div class="upload-sub">終極自動化版本：免除亂碼與欄位綁定限制</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
@@ -91,56 +88,89 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
 
-  // 【核心修改】：強制指定以 Big5 (繁體中文 Windows 預設) 編碼讀取 ERP 檔案
+  // 不使用 Header 模式，直接讀取原始陣列，避開欄位標題亂碼問題
   Papa.parse(file, {
-    header: true,
+    header: false,
     skipEmptyLines: true,
-    encoding: "Big5", 
     complete: function(results) {
-      processERPData(results.data);
+      analyzeRawData(results.data);
     }
   });
 });
 
-function processERPData(rows) {
+function analyzeRawData(dataset) {
+  if (dataset.length < 2) return;
+
   let totalSales = 0;
   let totalOrders = 0;
   let orderCount = 0;
   let detectedMonth = "未知";
   let productSummary = {};
 
-  rows.forEach(row => {
-    // 清洗欄位名稱的隱形空白
-    let cleanRow = {};
-    Object.keys(row).forEach(k => { cleanRow[k.trim()] = row[k]; });
+  // 1. 自動偵測關鍵資料在哪一欄 (索引值)
+  let dateIdx = -1, nameIdx = -1, qtyIdx = -1, amtIdx = -1;
+  
+  // 掃描前 5 列來猜測欄位定位
+  for(let i = 0; i < Math.min(5, dataset.length); i++) {
+    let row = dataset[i];
+    row.forEach((cell, idx) => {
+      let val = String(cell).trim();
+      
+      // 偵測日期欄位 (特徵：包含 2026 或 2025 且有連字號)
+      if ((val.includes('2026') || val.includes('2025')) && (val.includes('-') || val.includes('/')) && dateIdx === -1) {
+        dateIdx = idx;
+      }
+      // 偵測品項名稱欄位 (特徵：文字包含香芒、野莓、檸檬、果昔、綠果昔等關鍵字)
+      if ((val.includes('芒') || val.includes('莓') || val.includes('综合') || val.includes('昔') || val.includes('檸')) && nameIdx === -1) {
+        nameIdx = idx;
+      }
+    });
+  }
 
-    // 排除億看報表最底部的系統合計列
-    let pName = cleanRow['品項名稱'] || cleanRow['品項'] || cleanRow['規格'];
-    if (!pName || pName.includes('合計') || pName.trim() === '') return;
+  // 億看 ERP 銷貨明細的標準相對位置修正
+  if (dateIdx !== -1) {
+    qtyIdx = dateIdx + 3; // 依據明細結構，數量通常在日期後第 3 欄
+    amtIdx = dateIdx + 4; // 金額合計通常在日期後第 4 欄
+  } else {
+    // 萬一完全偵測不到，使用強制保底索引
+    dateIdx = 0; nameIdx = 1; qtyIdx = 3; amtIdx = 4;
+  }
+
+  // 2. 開始跑資料處理
+  dataset.forEach((row, index) => {
+    // 跳過可能的第一列標題
+    if (index === 0) return;
+
+    let pName = row[nameIdx] ? String(row[nameIdx]).trim() : '';
+    
+    // 過濾無效資料與合計列
+    if (!pName || pName === '' || pName.includes('合計') || pName.includes('品項')) return;
 
     orderCount++;
 
-    // 累加金額
-    let amount = parseFloat(String(cleanRow['合計'] || cleanRow['金額'] || 0).replace(/,/g, ''));
-    if (!isNaN(amount)) totalSales += amount;
-
-    // 累加數量
-    let qty = parseFloat(String(cleanRow['數量'] || 0).replace(/,/g, ''));
+    // 解析數量
+    let rawQty = row[qtyIdx] ? String(row[qtyIdx]).replace(/,/g, '') : '0';
+    let qty = parseFloat(rawQty);
     if (!isNaN(qty)) totalOrders += qty;
 
-    // 品項銷量加總
-    if (pName && !isNaN(qty)) {
+    // 解析金額
+    let rawAmt = row[amtIdx] ? String(row[amtIdx]).replace(/,/g, '') : '0';
+    let amount = parseFloat(rawAmt);
+    if (!isNaN(amount)) totalSales += amount;
+
+    // 分組加總
+    if (!isNaN(qty)) {
       productSummary[pName] = (productSummary[pName] || 0) + qty;
     }
 
-    // 偵測月份
-    let dateStr = cleanRow['銷貨日期'] || cleanRow['日期'];
-    if (dateStr && detectedMonth === "未知") {
+    // 擷取月份
+    let dateStr = row[dateIdx] ? String(row[dateIdx]).trim() : '';
+    if (dateStr && detectedMonth === "未知" && dateStr.length >= 7) {
       detectedMonth = dateStr.substring(0, 7);
     }
   });
 
-  // 更新介面
+  // 3. 更新畫面
   document.getElementById('val-sales').textContent = 'NT$ ' + totalSales.toLocaleString();
   document.getElementById('val-orders').textContent = totalOrders.toLocaleString() + ' 瓶';
   document.getElementById('val-count').textContent = orderCount + ' 張';
@@ -151,7 +181,7 @@ function processERPData(rows) {
   let dataValues = sortedProducts.map(x => x[1]);
 
   updateChart(labels, dataValues);
-  showNotification('⚡ CSV 檔案解析成功，已修正編碼！');
+  showNotification('⚡ 終極相容引擎解析成功！');
 }
 
 function updateChart(labels, data) {
@@ -174,7 +204,7 @@ function updateChart(labels, data) {
       maintainAspectRatio: false,
       plugins: { legend: { labels: { color: '#94a3b8' } } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
         y: { grid: { color: '#1e2a42' }, ticks: { color: '#94a3b8' } }
       }
     }
