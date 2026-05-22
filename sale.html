@@ -51,7 +51,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">終極自動化版本：免除亂碼與欄位綁定限制</div>
+    <div class="upload-sub">全域字串特徵對齊版本：徹底排除亂碼與位置偏移</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
@@ -84,21 +84,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 <script>
 let currentChart = null;
 
+// 宣告您系統中真實的產品中文名稱清單
+const TARGET_PRODUCTS = ['熱情香芒','仲夏野莓','翡翠綜合','綠果昔','草莓檸檬','火龍果','木瓜','紅果昔'];
+
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
 
-  // 不使用 Header 模式，直接讀取原始陣列，避開欄位標題亂碼問題
+  // 使用非 Header 矩陣模式
   Papa.parse(file, {
     header: false,
     skipEmptyLines: true,
     complete: function(results) {
-      analyzeRawData(results.data);
+      analyzeByProductFeatures(results.data);
     }
   });
 });
 
-function analyzeRawData(dataset) {
+function analyzeByProductFeatures(dataset) {
   if (dataset.length < 2) return;
 
   let totalSales = 0;
@@ -106,82 +109,79 @@ function analyzeRawData(dataset) {
   let orderCount = 0;
   let detectedMonth = "未知";
   let productSummary = {};
-
-  // 1. 自動偵測關鍵資料在哪一欄 (索引值)
-  let dateIdx = -1, nameIdx = -1, qtyIdx = -1, amtIdx = -1;
   
-  // 掃描前 5 列來猜測欄位定位
-  for(let i = 0; i < Math.min(5, dataset.length); i++) {
-    let row = dataset[i];
-    row.forEach((cell, idx) => {
-      let val = String(cell).trim();
-      
-      // 偵測日期欄位 (特徵：包含 2026 或 2025 且有連字號)
-      if ((val.includes('2026') || val.includes('2025')) && (val.includes('-') || val.includes('/')) && dateIdx === -1) {
-        dateIdx = idx;
+  // 初始化品項統計物件
+  TARGET_PRODUCTS.forEach(p => productSummary[p] = 0);
+
+  // 逐列掃描
+  dataset.forEach((row, index) => {
+    if (index === 0) return; // 跳過標題列
+
+    let matchedProduct = null;
+    let rowNumbers = []; // 存取這一列內所有看起來像數字的內容
+
+    // 掃描這一列的每一個格子
+    row.forEach(cell => {
+      let cellStr = String(cell).trim();
+
+      // 1. 特徵比對：檢查這格是否包含任何一個標準品項名稱
+      TARGET_PRODUCTS.forEach(p => {
+        if (cellStr.includes(p)) {
+          matchedProduct = p;
+        }
+      });
+
+      // 2. 收集這一列內所有的純數字特徵 (剔除千分位逗號)
+      let cleanNum = cellStr.replace(/,/g, '');
+      let num = parseFloat(cleanNum);
+      if (!isNaN(num) && cleanNum !== '') {
+        rowNumbers.push(num);
       }
-      // 偵測品項名稱欄位 (特徵：文字包含香芒、野莓、檸檬、果昔、綠果昔等關鍵字)
-      if ((val.includes('芒') || val.includes('莓') || val.includes('综合') || val.includes('昔') || val.includes('檸')) && nameIdx === -1) {
-        nameIdx = idx;
+
+      // 3. 偵測日期月份
+      if ((cellStr.includes('2026') || cellStr.includes('2025')) && detectedMonth === "未知") {
+        detectedMonth = cellStr.substring(0, 7);
       }
     });
-  }
 
-  // 億看 ERP 銷貨明細的標準相對位置修正
-  if (dateIdx !== -1) {
-    qtyIdx = dateIdx + 3; // 依據明細結構，數量通常在日期後第 3 欄
-    amtIdx = dateIdx + 4; // 金額合計通常在日期後第 4 欄
-  } else {
-    // 萬一完全偵測不到，使用強制保底索引
-    dateIdx = 0; nameIdx = 1; qtyIdx = 3; amtIdx = 4;
-  }
+    // 如果這列成功匹配到了產品中文名稱，代表是有效資料列
+    if (matchedProduct) {
+      orderCount++;
 
-  // 2. 開始跑資料處理
-  dataset.forEach((row, index) => {
-    // 跳過可能的第一列標題
-    if (index === 0) return;
+      // 依據億看 CSV 的列特徵：
+      // rowNumbers 陣列中，通常倒數第二個數字是「數量」，最後一個大數字是「合計金額」
+      if (rowNumbers.length >= 2) {
+        let qty = rowNumbers[rowNumbers.length - 2];  // 倒數第二個數字
+        let amt = rowNumbers[rowNumbers.length - 1];  // 最後一個數字
 
-    let pName = row[nameIdx] ? String(row[nameIdx]).trim() : '';
-    
-    // 過濾無效資料與合計列
-    if (!pName || pName === '' || pName.includes('合計') || pName.includes('品項')) return;
-
-    orderCount++;
-
-    // 解析數量
-    let rawQty = row[qtyIdx] ? String(row[qtyIdx]).replace(/,/g, '') : '0';
-    let qty = parseFloat(rawQty);
-    if (!isNaN(qty)) totalOrders += qty;
-
-    // 解析金額
-    let rawAmt = row[amtIdx] ? String(row[amtIdx]).replace(/,/g, '') : '0';
-    let amount = parseFloat(rawAmt);
-    if (!isNaN(amount)) totalSales += amount;
-
-    // 分組加總
-    if (!isNaN(qty)) {
-      productSummary[pName] = (productSummary[pName] || 0) + qty;
-    }
-
-    // 擷取月份
-    let dateStr = row[dateIdx] ? String(row[dateIdx]).trim() : '';
-    if (dateStr && detectedMonth === "未知" && dateStr.length >= 7) {
-      detectedMonth = dateStr.substring(0, 7);
+        // 如果數值合理則加入累加
+        if (!isNaN(qty)) {
+          totalOrders += qty;
+          productSummary[matchedProduct] += qty;
+        }
+        if (!isNaN(amt)) {
+          totalSales += amt;
+        }
+      }
     }
   });
 
-  // 3. 更新畫面
+  // 更新介面卡片
   document.getElementById('val-sales').textContent = 'NT$ ' + totalSales.toLocaleString();
   document.getElementById('val-orders').textContent = totalOrders.toLocaleString() + ' 瓶';
   document.getElementById('val-count').textContent = orderCount + ' 張';
   document.getElementById('val-month').textContent = detectedMonth;
 
-  let sortedProducts = Object.entries(productSummary).sort((b, a) => a[1] - b[1]);
+  // 畫圖表（過濾掉銷量為 0 的品項，只顯示有賣出的）
+  let sortedProducts = Object.entries(productSummary)
+                             .filter(x => x[1] > 0)
+                             .sort((b, a) => a[1] - b[1]);
+                             
   let labels = sortedProducts.map(x => x[0]);
   let dataValues = sortedProducts.map(x => x[1]);
 
   updateChart(labels, dataValues);
-  showNotification('⚡ 終極相容引擎解析成功！');
+  showNotification('⚡ 全域字串對齊成功！數據已刷新！');
 }
 
 function updateChart(labels, data) {
@@ -204,20 +204,4 @@ function updateChart(labels, data) {
       maintainAspectRatio: false,
       plugins: { legend: { labels: { color: '#94a3b8' } } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
-        y: { grid: { color: '#1e2a42' }, ticks: { color: '#94a3b8' } }
-      }
-    }
-  });
-}
-
-function showNotification(msg) {
-  const el = document.createElement('div');
-  el.style.cssText='position:fixed;bottom:20px;right:20px;background:#10b981;color:#0b0e18;padding:12px 24px;border-radius:8px;font-weight:700;font-size:12px;z-index:999;';
-  el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
-}
-</script>
-</body>
-</html>
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size
