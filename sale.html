@@ -56,11 +56,11 @@ input[type="file"] { display: none; }
   </div>
 
   <div class="card">
-    <div class="card-title">🚨 鮮果多 PMC 產銷動態天數預警與排產決策看板</div>
+    <div class="card-title">🚨 鮮果多 PMC 產銷動態天數預警與排產決策看板 (字串核心校正版)</div>
     <table class="tbl" id="strategy-table">
       <thead>
         <tr>
-          <th>核心品項</th>
+          <th>庫存品項名稱</th>
           <th>本月累計銷量</th>
           <th>日均消耗銷速</th>
           <th>現有總庫存 (總公司+中廚)</th>
@@ -69,7 +69,7 @@ input[type="file"] { display: none; }
         </tr>
       </thead>
       <tbody>
-        <tr><td colspan="6" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳銷售明細與庫存報表，系統將自動修正 Big5 亂碼並執行多檔案隔空配對。</td></tr>
+        <tr><td colspan="6" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳銷售明細與庫存報表，系統將進行雙向核心字串對齊。</td></tr>
       </tbody>
     </table>
   </div>
@@ -77,7 +77,7 @@ input[type="file"] { display: none; }
 <script>
 let salesVolume = {}; 
 let salesVelocity = {}; 
-const DAYS_PASSED = 22; // 當月已過去天數基準
+const DAYS_PASSED = 22; // 5月當前已過去天數基準
 
 // 讀取銷售報表
 document.getElementById('salesFile').addEventListener('change', function(e) {
@@ -87,7 +87,6 @@ document.getElementById('salesFile').addEventListener('change', function(e) {
   Papa.parse(file, {
     header: false,
     skipEmptyLines: true,
-    encoding: "Big5",
     complete: function(results) {
       parseSales(results.data);
       document.getElementById('lbl-sales').textContent = "✅ 銷速鎖定完成";
@@ -105,7 +104,6 @@ document.getElementById('stockFile').addEventListener('change', function(e) {
   Papa.parse(file, {
     header: false,
     skipEmptyLines: true,
-    encoding: "Big5",
     complete: function(results) {
       window.rawStockDataset = results.data;
       document.getElementById('lbl-stock').textContent = "✅ 庫存解碼完成";
@@ -118,6 +116,7 @@ document.getElementById('stockFile').addEventListener('change', function(e) {
 function parseSales(dataset) {
   salesVolume = {};
   salesVelocity = {};
+  
   dataset.forEach((row, idx) => {
     if (idx < 2) return;
     let name = row[0] ? String(row[0]).trim() : '';
@@ -125,8 +124,13 @@ function parseSales(dataset) {
     
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
     if (!isNaN(qty) && qty > 0) {
-      // 關鍵字清洗：將銷售名稱標準化（去掉箱、組等字眼便於跟庫存配對）
-      let cleanKey = name.replace(/\[箱\]/g, '').replace(/\(箱\)/g, '').replace(/\[組\]/g, '').replace(/\(組\)/g, '').trim();
+      // 【核心修改一】：極大化清洗銷售品項字串，只留下純中文核心（如 "木瓜"、"綠果昔"）
+      let cleanKey = name.replace(/300ml-/g, '')
+                         .replace(/\[箱\]/g, '').replace(/\(箱\)/g, '')
+                         .replace(/\[組\]/g, '').replace(/\(組\)/g, '')
+                         .trim();
+      
+      // 累加可能因為規格不同而拆開的同品項銷量
       salesVolume[cleanKey] = (salesVolume[cleanKey] || 0) + qty;
     }
   });
@@ -146,69 +150,66 @@ function renderStrategyTable(stockDataset) {
   tbody.innerHTML = '';
 
   stockDataset.forEach((row, idx) => {
-    if (idx < 2) return; // 跳過標題與Header
+    if (idx < 2) return; 
 
     let rawName = row[1] ? String(row[1]).trim() : '';
     if (!rawName || rawName === '' || rawName.includes('品項名稱')) return;
 
-    // 清洗庫存品項名稱（去掉中括號[箱]以利跟銷售單對齊）
-    let cleanStockName = rawName.replace(/\[箱\]/g, '').replace(/\(箱\)/g, '').replace(/\[組\]/g, '').replace(/\(組\)/g, '').trim();
+    // 【核心修改二】：清洗庫存品項名稱
+    let cleanStockName = rawName.replace(/300ml-/g, '')
+                                .replace(/\[箱\]/g, '').replace(/\(箱\)/g, '')
+                                .replace(/\[組\]/g, '').replace(/\(組\)/g, '')
+                                .trim();
 
-    // 庫存數值整合：加總「總公司倉庫(第3欄)」與「鮮果多中央廚房(第4欄)」
+    // 整合總公司倉庫(欄位3)與中央廚房(欄位4)的庫存
     let compStock = parseFloat(String(row[3] || '0').replace(/,/g, ''));
     let cbStock = parseFloat(String(row[4] || '0').replace(/,/g, ''));
     let totalStock = (isNaN(compStock) ? 0 : compStock) + (isNaN(cbStock) ? 0 : cbStock);
 
-    // 配對銷售數據
     let accumSales = 0;
     let velocity = 0;
 
-    // 模糊比對：檢查銷售清單中是否包含庫存的核心品項名稱
+    // 【核心修改三】：雙向交叉包含比對，徹底擊穿「木瓜」與「木瓜[箱]」的配對障礙
     Object.keys(salesVelocity).forEach(sKey => {
-      if (cleanStockName.includes(sKey) || sKey.includes(cleanStockName)) {
-        accumSales = globalAccumulatedQty = salesVolume[sKey];
-        velocity = salesVelocity[sKey];
+      if (cleanStockName !== "" && sKey !== "") {
+        if (cleanStockName.includes(sKey) || sKey.includes(cleanStockName)) {
+          accumSales = salesVolume[sKey];
+          velocity = salesVelocity[sKey];
+        }
       }
     });
 
+    // 計算可用天數 (DOS)
     let dos = velocity > 0 ? (totalStock / velocity) : 999;
 
     let badge = '';
     let advice = '';
 
-    if (accumSales === 0) {
+    if (velocity === 0) {
       badge = '<span class="badge b-green">無常態銷速</span>';
-      advice = '庫存現狀安全。本月無實質銷售消耗，暫無排產迫切性。';
-    } else if (dos < 3) {
+      advice = '庫存現狀安全。本月銷售明細中無消耗紀錄，暫無排產迫切性。';
+    } else if (dos < 5) { // 提高安全庫存天數警戒至 5 天
       badge = '<span class="badge b-red">🚨 產線極危</span>';
-      advice = `當前庫存僅能支撐 ${dos.toFixed(1)} 天。產線必須在 24 小時內插單排產，否則面臨斷貨！`;
-    } else if (dos >= 3 && dos <= 7) {
+      advice = `當前庫存僅能支撐 ${dos.toFixed(1)} 天。產線必須立即插單排產，否則面臨斷貨！`;
+    } else if (dos >= 5 && dos <= 12) {
       badge = '<span class="badge b-amber">注意進料</span>';
-      advice = `庫存可撐 ${dos.toFixed(1)} 天。常態消耗，建議納入下週正常排產進度。`;
+      advice = `庫存可撐 ${dos.toFixed(1)} 天。消耗速度穩定，建議納入常態排產排程。`;
     } else {
       badge = '<span class="badge b-green">儲備充足</span>';
-      advice = `結構安全（可撐 ${dos.toFixed(1)} 天）。目前無斷貨風險，產能優先調配給紅燈品項。`;
+      advice = `結構安全（可撐 ${dos.toFixed(1)} 天）。目前無斷貨風險，產能優先調配給其他紅燈品項。`;
     }
 
     let tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-weight:700;">${rawName}</td>
       <td class="mono">${accumSales.toLocaleString()}</td>
-      <td class="mono" style="color:var(--blue2);">${velocity.toFixed(1)} /天</td>
+      <td class="mono" style="color:var(--blue2);">${velocity.toFixed(1)} 單位/天</td>
       <td class="mono" style="color:var(--green2);">${totalStock.toLocaleString()}</td>
-      <td class="mono" style="color:${dos < 3 ? 'var(--red2)' : 'var(--text)'}">${dos === 999 ? '—' : dos.toFixed(1) + ' 天'}</td>
+      <td class="mono" style="color:${dos < 5 ? 'var(--red2)' : 'var(--text)'}">${dos === 999 ? '—' : dos.toFixed(1) + ' 天'}</td>
       <td>${badge} <span style="margin-left:8px;">${advice}</span></td>
     `;
     tbody.appendChild(tr);
   });
-}
-
-function showNotification(msg) {
-  const el = document.createElement('div');
-  el.style.cssText='position:fixed;bottom:20px;right:20px;background:#10b981;color:#0b0e18;padding:12px 24px;border-radius:8px;font-weight:700;font-size:12px;z-index:999;';
-  el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
 }
 </script>
 </body>
