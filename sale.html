@@ -51,7 +51,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">全域字串特徵對齊版本：徹底排除亂碼與位置偏移</div>
+    <div class="upload-sub">鮮果多專用規格版本：精準欄位綁定與日期解析</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
@@ -65,7 +65,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <div class="kpi-val" id="val-orders" style="color:var(--green2)">0</div>
     </div>
     <div class="kpi amber">
-      <div class="kpi-lbl">🧾 銷貨單總筆數 (張)</div>
+      <div class="kpi-lbl">🧾 有效銷貨品項數 (種)</div>
       <div class="kpi-val" id="val-count" style="color:var(--amber2)">0</div>
     </div>
     <div class="kpi red">
@@ -75,7 +75,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
   </div>
 
   <div class="chart-card">
-    <div class="chart-title">📊 檔案內各品項銷量統計 (由大到小排序)</div>
+    <div class="chart-title">📊 各品項銷量統計 (由大到小排序)</div>
     <div style="position:relative; height:300px;">
       <canvas id="dynamic-chart"></canvas>
     </div>
@@ -84,104 +84,74 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 <script>
 let currentChart = null;
 
-// 宣告您系統中真實的產品中文名稱清單
-const TARGET_PRODUCTS = ['熱情香芒','仲夏野莓','翡翠綜合','綠果昔','草莓檸檬','火龍果','木瓜','紅果昔'];
-
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
 
-  // 使用非 Header 矩陣模式
   Papa.parse(file, {
     header: false,
     skipEmptyLines: true,
     complete: function(results) {
-      analyzeByProductFeatures(results.data);
+      parseFreshData(results.data);
     }
   });
 });
 
-function analyzeByProductFeatures(dataset) {
+function parseFreshData(dataset) {
   if (dataset.length < 2) return;
 
   let totalSales = 0;
   let totalOrders = 0;
-  let orderCount = 0;
-  let detectedMonth = "未知";
   let productSummary = {};
-  
-  // 初始化品項統計物件
-  TARGET_PRODUCTS.forEach(p => productSummary[p] = 0);
+  let detectedMonth = "未知";
 
-  // 逐列掃描
+  // 1. 先從第一列精確解析日期區間，尋找第二個日期（即結束日期，通常代表報表月份）
+  let firstRowStr = String(dataset[0][0] || '');
+  let dateMatches = firstRowStr.match(/\d{4}\/\d{2}\/\d{2}/g);
+  if (dateMatches && dateMatches.length >= 2) {
+    // 抓取結束日期的年份與月份，例如 "2026/05" 改為 "2026-05"
+    detectedMonth = dateMatches[1].substring(0, 7).replace(/\//g, '-');
+  } else if (dateMatches && dateMatches.length === 1) {
+    detectedMonth = dateMatches[0].substring(0, 7).replace(/\//g, '-');
+  }
+
+  // 2. 逐列進行結構化掃描
   dataset.forEach((row, index) => {
-    if (index === 0) return; // 跳過標題列
+    // 跳過前兩列（包含標題與欄位名稱列「按品項,數量...」）
+    if (index < 2) return;
 
-    let matchedProduct = null;
-    let rowNumbers = []; // 存取這一列內所有看起來像數字的內容
+    let pName = row[0] ? String(row[0]).trim() : '';
+    
+    // 過濾掉無效列、空白列、以及合計、折抵等非實際生產排程品項
+    if (!pName || pName === '' || pName.includes('合計') || pName.includes('按品項') || pName.includes('折抵') || pName.includes('小卡')) return;
 
-    // 掃描這一列的每一個格子
-    row.forEach(cell => {
-      let cellStr = String(cell).trim();
+    // 依據標準規格：第 1 欄為數量，第 4 欄為合計金額
+    let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
+    let amt = parseFloat(String(row[4] || '0').replace(/,/g, ''));
 
-      // 1. 特徵比對：檢查這格是否包含任何一個標準品項名稱
-      TARGET_PRODUCTS.forEach(p => {
-        if (cellStr.includes(p)) {
-          matchedProduct = p;
-        }
-      });
-
-      // 2. 收集這一列內所有的純數字特徵 (剔除千分位逗號)
-      let cleanNum = cellStr.replace(/,/g, '');
-      let num = parseFloat(cleanNum);
-      if (!isNaN(num) && cleanNum !== '') {
-        rowNumbers.push(num);
-      }
-
-      // 3. 偵測日期月份
-      if ((cellStr.includes('2026') || cellStr.includes('2025')) && detectedMonth === "未知") {
-        detectedMonth = cellStr.substring(0, 7);
-      }
-    });
-
-    // 如果這列成功匹配到了產品中文名稱，代表是有效資料列
-    if (matchedProduct) {
-      orderCount++;
-
-      // 依據億看 CSV 的列特徵：
-      // rowNumbers 陣列中，通常倒數第二個數字是「數量」，最後一個大數字是「合計金額」
-      if (rowNumbers.length >= 2) {
-        let qty = rowNumbers[rowNumbers.length - 2];  // 倒數第二個數字
-        let amt = rowNumbers[rowNumbers.length - 1];  // 最後一個數字
-
-        // 如果數值合理則加入累加
-        if (!isNaN(qty)) {
-          totalOrders += qty;
-          productSummary[matchedProduct] += qty;
-        }
-        if (!isNaN(amt)) {
-          totalSales += amt;
-        }
-      }
+    if (!isNaN(qty) && qty > 0) {
+      totalOrders += qty;
+      productSummary[pName] = (productSummary[pName] || 0) + qty;
+    }
+    if (!isNaN(amt) && amt > 0) {
+      totalSales += amt;
     }
   });
 
-  // 更新介面卡片
+  // 3. 更新數據到卡片
+  let activeItemCount = Object.keys(productSummary).length;
   document.getElementById('val-sales').textContent = 'NT$ ' + totalSales.toLocaleString();
   document.getElementById('val-orders').textContent = totalOrders.toLocaleString() + ' 瓶';
-  document.getElementById('val-count').textContent = orderCount + ' 張';
+  document.getElementById('val-count').textContent = activeItemCount + ' 種';
   document.getElementById('val-month').textContent = detectedMonth;
 
-  // 畫圖表（過濾掉銷量為 0 的品項，只顯示有賣出的）
-  let sortedProducts = Object.entries(productSummary)
-                             .filter(x => x[1] > 0)
-                             .sort((b, a) => a[1] - b[1]);
-                             
+  // 排序並渲染圖表
+  let sortedProducts = Object.entries(productSummary).sort((b, a) => a[1] - b[1]);
   let labels = sortedProducts.map(x => x[0]);
   let dataValues = sortedProducts.map(x => x[1]);
 
   updateChart(labels, dataValues);
-  showNotification('⚡ 全域字串對齊成功！數據已刷新！');
+  showNotification('⚡ 專用規格解析成功！月份與數據已校正！');
 }
 
 function updateChart(labels, data) {
@@ -204,4 +174,20 @@ function updateChart(labels, data) {
       maintainAspectRatio: false,
       plugins: { legend: { labels: { color: '#94a3b8' } } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+        y: { grid: { color: '#1e2a42' }, ticks: { color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+function showNotification(msg) {
+  const el = document.createElement('div');
+  el.style.cssText='position:fixed;bottom:20px;right:20px;background:#10b981;color:#0b0e18;padding:12px 24px;border-radius:8px;font-weight:700;font-size:12px;z-index:999;';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+</script>
+</body>
+</html>
