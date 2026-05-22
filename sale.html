@@ -14,7 +14,7 @@
   --border:#1e2a42;--border2:#2a3858;
   --blue:#3b82f6;--blue2:#60a5fa;--green:#10b981;--green2:#34d399;
   --amber:#f59e0b;--amber2:#fbbf24;--red:#ef4444;--red2:#f87171;
-  --purple:#8b5cf6;--purple2:#a78bfa;
+  --purple:#8b5cf6;--purple2:#a78bfa;--cyan:#06b6d4;--cyan2:#22d3ee;
   --text:#f1f5f9;--t2:#94a3b8;--t3:#475569;
   --font:'Noto Sans TC',sans-serif;--mono:'DM Mono',monospace;
 }
@@ -42,21 +42,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .kpi.blue::before{background:var(--blue)}.kpi.green::before{background:var(--green)}
 .kpi.amber::before{background:var(--amber)}.kpi.red::before{background:var(--red)}
 .kpi-lbl{font-size:11px;color:var(--t3);margin-bottom:8px;letter-spacing:.5px}
-.kpi-val{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1}
+.kpi-val{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
 
-.chart-grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chart-grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 .chart-card { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
 .chart-title { font-size: 13px; font-weight: 700; color: var(--t2); margin-bottom: 15px; display: flex; justify-content: space-between; }
 .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
 .b-green { background: rgba(16,185,129,0.15); color: var(--green2); }
 .b-purple { background: rgba(139,92,246,0.15); color: var(--purple2); }
+.b-amber { background: rgba(245,158,11,0.15); color: var(--amber2); }
+.b-cyan { background: rgba(6,182,212,0.15); color: var(--cyan2); }
 </style>
 </head>
 <body>
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">大宗規格進階分流版本：支援「箱裝」與「合一組」自動隔離</div>
+    <div class="upload-sub">進階四路分流版本：標準產銷量與額外費用、促銷補貨精準隔離</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
@@ -66,11 +68,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
       <div class="kpi-val" id="val-sales">NT$ 0</div>
     </div>
     <div class="kpi green">
-      <div class="kpi-lbl">🎯 零售總出貨量 (單瓶)</div>
-      <div class="kpi-val" id="val-bottle-orders">0 瓶</div>
+      <div class="kpi-lbl">🎯 實際零售總量 (瓶/袋)</div>
+      <div class="kpi-val" id="val-bottle-orders">0 單位</div>
     </div>
     <div class="kpi purple">
-      <div class="kpi-lbl">📦 大宗總出貨量 (箱裝 / 組合)</div>
+      <div class="kpi-lbl">📦 實際大宗總量 (箱/組)</div>
       <div class="kpi-val" id="val-box-orders">0 箱/組</div>
     </div>
     <div class="kpi red">
@@ -81,19 +83,33 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="chart-grid-layout">
     <div class="chart-card">
-      <div class="chart-title">📊 零售品項銷量排行 <span class="badge b-green">單位：瓶</span></div>
-      <div style="position:relative; height:280px;"><canvas id="bottle-chart"></canvas></div>
+      <div class="chart-title">📊 零售品項銷量排行 <span class="badge b-green">單位：瓶/袋</span></div>
+      <div style="position:relative; height:240px;"><canvas id="bottle-chart"></canvas></div>
     </div>
     
     <div class="chart-card">
-      <div class="chart-title">📊 大宗品項銷量排行 <span class="badge b-purple">單位：箱或組</span></div>
-      <div style="position:relative; height:280px;"><canvas id="box-chart"></canvas></div>
+      <div class="chart-title">📊 大宗品項銷量排行 <span class="badge b-purple">單位：箱/組</span></div>
+      <div style="position:relative; height:240px;"><canvas id="box-chart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-grid-layout">
+    <div class="chart-card">
+      <div class="chart-title">📊 額外費用與資材項目 (運費/試喝/手續費/糖) <span class="badge b-amber">獨立分類</span></div>
+      <div style="position:relative; height:240px;"><canvas id="expense-chart"></canvas></div>
+    </div>
+    
+    <div class="chart-card">
+      <div class="chart-title">📊 促銷與售後補寄統計 (試用/補) <span class="badge b-cyan">獨立分類</span></div>
+      <div style="position:relative; height:240px;"><canvas id="promo-chart"></canvas></div>
     </div>
   </div>
 
 <script>
 let bottleChart = null;
 let boxChart = null;
+let expenseChart = null;
+let promoChart = null;
 
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
@@ -103,12 +119,12 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
     header: false,
     skipEmptyLines: true,
     complete: function(results) {
-      parseFreshUnitData(results.data);
+      parseAdvancedData(results.data);
     }
   });
 });
 
-function parseFreshUnitData(dataset) {
+function parseAdvancedData(dataset) {
   if (dataset.length < 2) return;
 
   let totalSales = 0;
@@ -117,9 +133,11 @@ function parseFreshUnitData(dataset) {
   
   let bottleSummary = {};
   let boxSummary = {};
+  let expenseSummary = {};
+  let promoSummary = {};
   let detectedMonth = "未知";
 
-  // 解析第一列日期區間
+  // 解析日期
   let firstRowStr = String(dataset[0][0] || '');
   let dateMatches = firstRowStr.match(/\d{4}\/\d{2}\/\d{2}/g);
   if (dateMatches && dateMatches.length >= 2) {
@@ -132,40 +150,51 @@ function parseFreshUnitData(dataset) {
     if (index < 2) return;
 
     let pName = row[0] ? String(row[0]).trim() : '';
-    if (!pName || pName === '' || pName.includes('合計') || pName.includes('按品項') || pName.includes('折抵') || pName.includes('小卡')) return;
+    if (!pName || pName === '' || pName.includes('合計') || pName.includes('按品項')) return;
 
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
     let amt = parseFloat(String(row[4] || '0').replace(/,/g, ''));
 
-    if (!isNaN(amt) && amt > 0) totalSales += amt;
+    if (!isNaN(amt)) totalSales += amt;
+    if (isNaN(qty) || qty <= 0) return;
 
-    if (!isNaN(qty) && qty > 0) {
-      // 【核心邏輯修正】：品項名稱中包含「箱」字或「組」字，全部劃歸為大宗出貨類型
-      if (pName.includes('箱') || pName.includes('組')) {
-        totalBoxes += qty;
-        boxSummary[pName] = (boxSummary[pName] || 0) + qty;
-      } else {
-        totalBottles += qty;
-        bottleSummary[pName] = (bottleSummary[pName] || 0) + qty;
-      }
+    // 【核心多選流判定邏輯】
+    if (pName.includes('運費') || pName.includes('試喝') || pName.includes('手續費') || pName.includes('糖')) {
+      // 分流一：額外費用項目類
+      expenseSummary[pName] = (expenseSummary[pName] || 0) + qty;
+    } else if (pName.includes('試用') || pName.includes('補')) {
+      // 分流二：促銷與售後補寄類
+      promoSummary[pName] = (promoSummary[pName] || 0) + qty;
+    } else if (pName.includes('箱') || pName.includes('組')) {
+      // 分流三：標準大宗類
+      totalBoxes += qty;
+      boxSummary[pName] = (boxSummary[pName] || 0) + qty;
+    } else {
+      // 分流四：標準零售單瓶/袋類
+      totalBottles += qty;
+      bottleSummary[pName] = (bottleSummary[pName] || 0) + qty;
     }
   });
 
   // 更新數據卡片文字
   document.getElementById('val-sales').textContent = 'NT$ ' + totalSales.toLocaleString();
-  document.getElementById('val-bottle-orders').textContent = totalBottles.toLocaleString() + ' 瓶';
+  document.getElementById('val-bottle-orders').textContent = totalBottles.toLocaleString() + ' 單位';
   document.getElementById('val-box-orders').textContent = totalBoxes.toLocaleString() + ' 箱/組';
   document.getElementById('val-month').textContent = detectedMonth;
 
-  // 排序資料
+  // 資料排序
   let sortedBottles = Object.entries(bottleSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
   let sortedBoxes = Object.entries(boxSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
+  let sortedExpenses = Object.entries(expenseSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
+  let sortedPromos = Object.entries(promoSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
 
-  // 重新渲染雙圖表
-  renderChart('bottle-chart', bottleChart, sortedBottles.map(x=>x[0]), sortedBottles.map(x=>x[1]), '#10b981', '出貨數量 (瓶)', c => bottleChart = c);
-  renderChart('box-chart', boxChart, sortedBoxes.map(x=>x[0]), sortedBoxes.map(x=>x[1]), '#8b5cf6', '出貨數量 (箱/組)', c => boxChart = c);
+  // 渲染四個獨立圖表
+  renderChart('bottle-chart', bottleChart, sortedBottles.map(x=>x[0]), sortedBottles.map(x=>x[1]), '#10b981', '出貨數量', c => bottleChart = c);
+  renderChart('box-chart', boxChart, sortedBoxes.map(x=>x[0]), sortedBoxes.map(x=>x[1]), '#8b5cf6', '大宗數量', c => boxChart = c);
+  renderChart('expense-chart', expenseChart, sortedExpenses.map(x=>x[0]), sortedExpenses.map(x=>x[1]), '#f59e0b', '項目數量', c => expenseChart = c);
+  renderChart('promo-chart', promoChart, sortedPromos.map(x=>x[0]), sortedPromos.map(x=>x[1]), '#06b6d4', '異動數量', c => promoChart = c);
 
-  showNotification('⚡ 組合與箱裝資料已成功分流！');
+  showNotification('⚡ 四路指標分流成功！髒資料已完成清洗隔離。');
 }
 
 function renderChart(canvasId, chartObj, labels, data, color, datasetLabel, setChartRef) {
@@ -186,7 +215,7 @@ function renderChart(canvasId, chartObj, labels, data, color, datasetLabel, setC
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      plugins: { legend: { display: false } },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
         y: { grid: { color: '#1e2a42' }, ticks: { color: '#94a3b8' } }
