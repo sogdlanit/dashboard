@@ -48,7 +48,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .chart-card { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
 .chart-title { font-size: 13px; font-weight: 700; color: var(--t2); margin-bottom: 15px; display: flex; justify-content: space-between; }
 .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
-.b-blue { background: rgba(59,130,246,0.15); color: var(--blue2); }
+.b-green { background: rgba(16,185,129,0.15); color: var(--green2); }
 .b-purple { background: rgba(139,92,246,0.15); color: var(--purple2); }
 </style>
 </head>
@@ -56,22 +56,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">單位分流規格版本：自動分離「單瓶出貨」與「箱裝出貨」</div>
+    <div class="upload-sub">大宗規格進階分流版本：支援「箱裝」與「合一組」自動隔離</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
   <div class="kpi-grid">
     <div class="kpi blue">
       <div class="kpi-lbl">📦 本月銷貨總金額 (NT$)</div>
-      <div class="kpi-val" id="val-sales">$0</div>
+      <div class="kpi-val" id="val-sales">NT$ 0</div>
     </div>
     <div class="kpi green">
       <div class="kpi-lbl">🎯 零售總出貨量 (單瓶)</div>
       <div class="kpi-val" id="val-bottle-orders">0 瓶</div>
     </div>
     <div class="kpi purple">
-      <div class="kpi-lbl">📦 大宗總出貨量 (箱裝)</div>
-      <div class="kpi-val" id="val-box-orders">0 箱</div>
+      <div class="kpi-lbl">📦 大宗總出貨量 (箱裝 / 組合)</div>
+      <div class="kpi-val" id="val-box-orders">0 箱/組</div>
     </div>
     <div class="kpi red">
       <div class="kpi-lbl">📅 報表數據月份</div>
@@ -81,12 +81,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="chart-grid-layout">
     <div class="chart-card">
-      <div class="chart-title">📊 零售品項銷量排行 <span class="badge b-blue">單位：瓶</span></div>
+      <div class="chart-title">📊 零售品項銷量排行 <span class="badge b-green">單位：瓶</span></div>
       <div style="position:relative; height:280px;"><canvas id="bottle-chart"></canvas></div>
     </div>
     
     <div class="chart-card">
-      <div class="chart-title">📊 大宗品項銷量排行 <span class="badge b-purple">單位：箱</span></div>
+      <div class="chart-title">📊 大宗品項銷量排行 <span class="badge b-purple">單位：箱或組</span></div>
       <div style="position:relative; height:280px;"><canvas id="box-chart"></canvas></div>
     </div>
   </div>
@@ -103,12 +103,12 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
     header: false,
     skipEmptyLines: true,
     complete: function(results) {
-      parseUnitSplitData(results.data);
+      parseFreshUnitData(results.data);
     }
   });
 });
 
-function parseUnitSplitData(dataset) {
+function parseFreshUnitData(dataset) {
   if (dataset.length < 2) return;
 
   let totalSales = 0;
@@ -119,7 +119,7 @@ function parseUnitSplitData(dataset) {
   let boxSummary = {};
   let detectedMonth = "未知";
 
-  // 解析日期
+  // 解析第一列日期區間
   let firstRowStr = String(dataset[0][0] || '');
   let dateMatches = firstRowStr.match(/\d{4}\/\d{2}\/\d{2}/g);
   if (dateMatches && dateMatches.length >= 2) {
@@ -140,8 +140,8 @@ function parseUnitSplitData(dataset) {
     if (!isNaN(amt) && amt > 0) totalSales += amt;
 
     if (!isNaN(qty) && qty > 0) {
-      // 【核心邏輯】：根據品項名稱是否包含「箱」字，自動進行分流統計
-      if (pName.includes('箱')) {
+      // 【核心邏輯修正】：品項名稱中包含「箱」字或「組」字，全部劃歸為大宗出貨類型
+      if (pName.includes('箱') || pName.includes('組')) {
         totalBoxes += qty;
         boxSummary[pName] = (boxSummary[pName] || 0) + qty;
       } else {
@@ -151,22 +151,21 @@ function parseUnitSplitData(dataset) {
     }
   });
 
-  // 更新數據卡片
+  // 更新數據卡片文字
   document.getElementById('val-sales').textContent = 'NT$ ' + totalSales.toLocaleString();
   document.getElementById('val-bottle-orders').textContent = totalBottles.toLocaleString() + ' 瓶';
-  document.getElementById('val-box-orders').textContent = totalBoxes.toLocaleString() + ' 箱';
+  document.getElementById('val-box-orders').textContent = totalBoxes.toLocaleString() + ' 箱/組';
   document.getElementById('val-month').textContent = detectedMonth;
 
-  // 排序零售資料 (瓶)
+  // 排序資料
   let sortedBottles = Object.entries(bottleSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
-  // 排序大宗資料 (箱)
   let sortedBoxes = Object.entries(boxSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
 
-  // 渲染雙圖表
-  renderChart('bottle-chart', bottleChart, sortedBottles.map(x=>x[0]), sortedBottles.map(x=>x[1]), '#3b82f6', '出貨數量 (瓶)', c => bottleChart = c);
-  renderChart('box-chart', boxChart, sortedBoxes.map(x=>x[0]), sortedBoxes.map(x=>x[1]), '#8b5cf6', '出貨數量 (箱)', c => boxChart = c);
+  // 重新渲染雙圖表
+  renderChart('bottle-chart', bottleChart, sortedBottles.map(x=>x[0]), sortedBottles.map(x=>x[1]), '#10b981', '出貨數量 (瓶)', c => bottleChart = c);
+  renderChart('box-chart', boxChart, sortedBoxes.map(x=>x[0]), sortedBoxes.map(x=>x[1]), '#8b5cf6', '出貨數量 (箱/組)', c => boxChart = c);
 
-  showNotification('⚡ 單位自動分流完成！已隔離箱裝與瓶裝數據！');
+  showNotification('⚡ 組合與箱裝資料已成功分流！');
 }
 
 function renderChart(canvasId, chartObj, labels, data, color, datasetLabel, setChartRef) {
@@ -195,7 +194,7 @@ function renderChart(canvasId, chartObj, labels, data, color, datasetLabel, setC
     }
   });
   
-  setChartRef(newChart); // 回傳新圖表實例防止重疊
+  setChartRef(newChart);
 }
 
 function showNotification(msg) {
