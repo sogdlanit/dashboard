@@ -58,7 +58,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="upload-container" onclick="document.getElementById('fileInput').click()">
     <div class="upload-title">📥 點擊或將億看 ERP 銷貨單 CSV 檔案拖曳至此</div>
-    <div class="upload-sub">進階四路分流版本：標準產銷量與額外費用、促銷補貨精準隔離</div>
+    <div class="upload-sub">四路分流進階優化版：小卡、DM、名片、折抵皆納入非核心費用隔離</div>
     <input type="file" id="fileInput" accept=".csv">
   </div>
 
@@ -95,12 +95,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
   <div class="chart-grid-layout">
     <div class="chart-card">
-      <div class="chart-title">📊 額外費用與資材項目 (運費/試喝/手續費/糖) <span class="badge b-amber">獨立分類</span></div>
+      <div class="chart-title">📊 額外費用與資材項目 (運費/試喝/手續/糖/小卡/DM/名片/折抵) <span class="badge b-amber">費用與資材</span></div>
       <div style="position:relative; height:240px;"><canvas id="expense-chart"></canvas></div>
     </div>
     
     <div class="chart-card">
-      <div class="chart-title">📊 促銷與售後補寄統計 (試用/補) <span class="badge b-cyan">獨立分類</span></div>
+      <div class="chart-title">📊 促銷與售後補寄統計 (試用/補) <span class="badge b-cyan">變動調整</span></div>
       <div style="position:relative; height:240px;"><canvas id="promo-chart"></canvas></div>
     </div>
   </div>
@@ -156,21 +156,21 @@ function parseAdvancedData(dataset) {
     let amt = parseFloat(String(row[4] || '0').replace(/,/g, ''));
 
     if (!isNaN(amt)) totalSales += amt;
+
+    // 【新增過濾機制】：即使金額為負數（如折抵），仍要納入費用統計，故排除qty<=0的限制改在下方分流執行
+    if (pName.includes('運費') || pName.includes('試喝') || pName.includes('手續') || pName.includes('糖') || pName.includes('小卡') || pName.includes('DM') || pName.includes('名片') || pName.includes('折抵')) {
+      expenseSummary[pName] = (expenseSummary[pName] || 0) + (isNaN(qty) ? 0 : qty);
+      return;
+    }
+
     if (isNaN(qty) || qty <= 0) return;
 
-    // 【核心多選流判定邏輯】
-    if (pName.includes('運費') || pName.includes('試喝') || pName.includes('手續費') || pName.includes('糖')) {
-      // 分流一：額外費用項目類
-      expenseSummary[pName] = (expenseSummary[pName] || 0) + qty;
-    } else if (pName.includes('試用') || pName.includes('補')) {
-      // 分流二：促銷與售後補寄類
+    if (pName.includes('試用') || pName.includes('補')) {
       promoSummary[pName] = (promoSummary[pName] || 0) + qty;
     } else if (pName.includes('箱') || pName.includes('組')) {
-      // 分流三：標準大宗類
       totalBoxes += qty;
       boxSummary[pName] = (boxSummary[pName] || 0) + qty;
     } else {
-      // 分流四：標準零售單瓶/袋類
       totalBottles += qty;
       bottleSummary[pName] = (bottleSummary[pName] || 0) + qty;
     }
@@ -185,16 +185,16 @@ function parseAdvancedData(dataset) {
   // 資料排序
   let sortedBottles = Object.entries(bottleSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
   let sortedBoxes = Object.entries(boxSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
-  let sortedExpenses = Object.entries(expenseSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
+  let sortedExpenses = Object.entries(expenseSummary).filter(x => Math.abs(x[1]) > 0).sort((b, a) => Math.abs(a[1]) - Math.abs(b[1]));
   let sortedPromos = Object.entries(promoSummary).filter(x => x[1] > 0).sort((b, a) => a[1] - b[1]);
 
   // 渲染四個獨立圖表
   renderChart('bottle-chart', bottleChart, sortedBottles.map(x=>x[0]), sortedBottles.map(x=>x[1]), '#10b981', '出貨數量', c => bottleChart = c);
   renderChart('box-chart', boxChart, sortedBoxes.map(x=>x[0]), sortedBoxes.map(x=>x[1]), '#8b5cf6', '大宗數量', c => boxChart = c);
-  renderChart('expense-chart', expenseChart, sortedExpenses.map(x=>x[0]), sortedExpenses.map(x=>x[1]), '#f59e0b', '項目數量', c => expenseChart = c);
+  renderChart('expense-chart', expenseChart, sortedExpenses.map(x=>x[0]), sortedExpenses.map(x=>x[1]), '#f59e0b', '變動數量', c => expenseChart = c);
   renderChart('promo-chart', promoChart, sortedPromos.map(x=>x[0]), sortedPromos.map(x=>x[1]), '#06b6d4', '異動數量', c => promoChart = c);
 
-  showNotification('⚡ 四路指標分流成功！髒資料已完成清洗隔離。');
+  showNotification('⚡ 費用與資材項目清洗完成！');
 }
 
 function renderChart(canvasId, chartObj, labels, data, color, datasetLabel, setChartRef) {
