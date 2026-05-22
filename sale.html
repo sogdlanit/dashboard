@@ -56,20 +56,21 @@ input[type="file"] { display: none; }
   </div>
 
   <div class="card">
-    <div class="card-title">🚨 鮮果多 PMC 產銷動態天數預警與排產決策看板 (字串核心校正版)</div>
+    <div class="card-title">🚨 鮮果多 PMC 產銷動態天數預警（規格單位與非箱數自動換算版）</div>
     <table class="tbl" id="strategy-table">
       <thead>
         <tr>
           <th>庫存品項名稱</th>
-          <th>本月累計銷量</th>
+          <th>包裝規格</th>
+          <th>本月銷量 (包/袋/瓶)</th>
           <th>日均消耗銷速</th>
-          <th>現有總庫存 (總公司+中廚)</th>
+          <th>現有總庫存量 (換算為單包)</th>
           <th>動態可用天數 (DOS)</th>
-          <th>戰略風險判定與排產決策建議</th>
+          <th>風險判定與建議決策</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td colspan="6" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳銷售明細與庫存報表，系統將進行雙向核心字串對齊。</td></tr>
+        <tr><td colspan="7" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳銷售明細與庫存報表，系統將自動解構規格進行實質需求消耗推算。</td></tr>
       </tbody>
     </table>
   </div>
@@ -77,41 +78,46 @@ input[type="file"] { display: none; }
 <script>
 let salesVolume = {}; 
 let salesVelocity = {}; 
-const DAYS_PASSED = 22; // 5月當前已過去天數基準
+const DAYS_PASSED = 22; // 5月已過去天數
 
-// 讀取銷售報表
 document.getElementById('salesFile').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
-  
   Papa.parse(file, {
-    header: false,
-    skipEmptyLines: true,
+    header: false, skipEmptyLines: true, encoding: "Big5",
     complete: function(results) {
       parseSales(results.data);
       document.getElementById('lbl-sales').textContent = "✅ 銷速鎖定完成";
       document.getElementById('lbl-sales').style.color = "var(--green2)";
-      triggerExecution();
+      if(window.rawStockDataset) renderStrategyTable(window.rawStockDataset);
     }
   });
 });
 
-// 讀取庫存報表
 document.getElementById('stockFile').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
-  
   Papa.parse(file, {
-    header: false,
-    skipEmptyLines: true,
+    header: false, skipEmptyLines: true, encoding: "Big5",
     complete: function(results) {
       window.rawStockDataset = results.data;
       document.getElementById('lbl-stock').textContent = "✅ 庫存解碼完成";
       document.getElementById('lbl-stock').style.color = "var(--green2)";
-      triggerExecution();
+      if(Object.keys(salesVelocity).length > 0) renderStrategyTable(window.rawStockDataset);
     }
   });
 });
+
+// 清洗名稱函數：提取純中文核心字眼以利交叉比對
+function getCoreName(str) {
+  return str.replace(/300ml-/g, '')
+            .replace(/\[箱\]/g, '').replace(/\(箱\)/g, '')
+            .replace(/\[組\]/g, '').replace(/\(組\)/g, '')
+            .replace(/冷凍/g, '').replace(/包/g, '').replace(/袋/g, '')
+            .replace(/\(果汁用\)/g, '').replace(/\(客製\)/g, '')
+            .replace(/現貨/g, '')
+            .trim();
+}
 
 function parseSales(dataset) {
   salesVolume = {};
@@ -124,25 +130,14 @@ function parseSales(dataset) {
     
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
     if (!isNaN(qty) && qty > 0) {
-      // 【核心修改一】：極大化清洗銷售品項字串，只留下純中文核心（如 "木瓜"、"綠果昔"）
-      let cleanKey = name.replace(/300ml-/g, '')
-                         .replace(/\[箱\]/g, '').replace(/\(箱\)/g, '')
-                         .replace(/\[組\]/g, '').replace(/\(組\)/g, '')
-                         .trim();
-      
-      // 累加可能因為規格不同而拆開的同品項銷量
-      salesVolume[cleanKey] = (salesVolume[cleanKey] || 0) + qty;
+      let coreKey = getCoreName(name);
+      salesVolume[coreKey] = (salesVolume[coreKey] || 0) + qty;
     }
   });
 
   Object.keys(salesVolume).forEach(k => {
     salesVelocity[k] = salesVolume[k] / DAYS_PASSED;
   });
-}
-
-function triggerExecution() {
-  if (!salesVelocity || !window.rawStockDataset) return;
-  renderStrategyTable(window.rawStockDataset);
 }
 
 function renderStrategyTable(stockDataset) {
@@ -155,57 +150,65 @@ function renderStrategyTable(stockDataset) {
     let rawName = row[1] ? String(row[1]).trim() : '';
     if (!rawName || rawName === '' || rawName.includes('品項名稱')) return;
 
-    // 【核心修改二】：清洗庫存品項名稱
-    let cleanStockName = rawName.replace(/300ml-/g, '')
-                                .replace(/\[箱\]/g, '').replace(/\(箱\)/g, '')
-                                .replace(/\[組\]/g, '').replace(/\(組\)/g, '')
-                                .trim();
+    let specStr = row[2] ? String(row[2]).trim() : ''; // 規格欄，例如 "66包"、"2kg/袋"
+    
+    // 【核心換算一】：解析規格中的每箱數量。若包含"包"或"個"，提取數字；否則視為非箱數之散裝產品（基數為 1）
+    let packMultiplier = 1;
+    let matchUnits = specStr.match(/(\d+)(包|個|入|瓶)/);
+    if (matchUnits && matchUnits[1]) {
+      packMultiplier = parseInt(matchUnits[1], 10);
+    }
 
-    // 整合總公司倉庫(欄位3)與中央廚房(欄位4)的庫存
-    let compStock = parseFloat(String(row[3] || '0').replace(/,/g, ''));
-    let cbStock = parseFloat(String(row[4] || '0').replace(/,/g, ''));
-    let totalStock = (isNaN(compStock) ? 0 : compStock) + (isNaN(cbStock) ? 0 : cbStock);
+    // 整合總公司倉庫與中央廚房的箱數/組數庫存
+    let compStockBoxes = parseFloat(String(row[3] || '0').replace(/,/g, ''));
+    let cbStockBoxes = parseFloat(String(row[4] || '0').replace(/,/g, ''));
+    let totalBoxes = (isNaN(compStockBoxes) ? 0 : compStockBoxes) + (isNaN(cbStockBoxes) ? 0 : cbStockBoxes);
+
+    // 【核心換算二】：換算為實質消耗單包/單瓶量
+    let totalSingleUnits = totalBoxes * packMultiplier;
 
     let accumSales = 0;
     let velocity = 0;
+    let stockCore = getCoreName(rawName);
 
-    // 【核心修改三】：雙向交叉包含比對，徹底擊穿「木瓜」與「木瓜[箱]」的配對障礙
+    // 交叉模糊匹配
     Object.keys(salesVelocity).forEach(sKey => {
-      if (cleanStockName !== "" && sKey !== "") {
-        if (cleanStockName.includes(sKey) || sKey.includes(cleanStockName)) {
+      if (stockCore !== "" && sKey !== "") {
+        if (stockCore.includes(sKey) || sKey.includes(stockCore)) {
           accumSales = salesVolume[sKey];
           velocity = salesVelocity[sKey];
         }
       }
     });
 
-    // 計算可用天數 (DOS)
-    let dos = velocity > 0 ? (totalStock / velocity) : 999;
+    // 【動態可用天數推算】：以實質單包庫存量除以每日消耗速度
+    let dos = velocity > 0 ? (totalSingleUnits / velocity) : 999;
 
     let badge = '';
     let advice = '';
 
     if (velocity === 0) {
       badge = '<span class="badge b-green">無常態銷速</span>';
-      advice = '庫存現狀安全。本月銷售明細中無消耗紀錄，暫無排產迫切性。';
-    } else if (dos < 5) { // 提高安全庫存天數警戒至 5 天
-      badge = '<span class="badge b-red">🚨 產線極危</span>';
-      advice = `當前庫存僅能支撐 ${dos.toFixed(1)} 天。產線必須立即插單排產，否則面臨斷貨！`;
-    } else if (dos >= 5 && dos <= 12) {
-      badge = '<span class="badge b-amber">注意進料</span>';
-      advice = `庫存可撐 ${dos.toFixed(1)} 天。消耗速度穩定，建議納入常態排產排程。`;
+      advice = '廠內現存非本月主推或無出貨紀錄項目，暫無排產急迫性。';
+    } else if (dos < 4) { 
+      badge = '<span class="badge b-red">🚨 斷貨極危</span>';
+      advice = `當前換算單包僅能支撐 ${dos.toFixed(1)} 天。消耗極快，產線須在24小時內插單！`;
+    } else if (dos >= 4 && dos <= 10) {
+      badge = '<span class="badge b-amber">水位偏低</span>';
+      advice = `庫存可撐 ${dos.toFixed(1)} 天。屬於常態消耗速度，建議排入下週常態排程。`;
     } else {
-      badge = '<span class="badge b-green">儲備充足</span>';
-      advice = `結構安全（可撐 ${dos.toFixed(1)} 天）。目前無斷貨風險，產能優先調配給其他紅燈品項。`;
+      badge = '<span class="badge b-green">儲備安全</span>';
+      advice = `結構安全（可撐 ${dos.toFixed(1)} 天）。目前無斷貨風險，產能調配給高風險品項。`;
     }
 
     let tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-weight:700;">${rawName}</td>
-      <td class="mono">${accumSales.toLocaleString()}</td>
-      <td class="mono" style="color:var(--blue2);">${velocity.toFixed(1)} 單位/天</td>
-      <td class="mono" style="color:var(--green2);">${totalStock.toLocaleString()}</td>
-      <td class="mono" style="color:${dos < 5 ? 'var(--red2)' : 'var(--text)'}">${dos === 999 ? '—' : dos.toFixed(1) + ' 天'}</td>
+      <td style="color:var(--t2); font-family:var(--mono);">${specStr || '散裝/個別'}</td>
+      <td class="mono">${accumSales > 0 ? accumSales.toLocaleString() : '—'}</td>
+      <td class="mono" style="color:var(--blue2);">${velocity > 0 ? velocity.toFixed(1) + ' /天' : '—'}</td>
+      <td class="mono" style="color:var(--green2);">${totalSingleUnits.toLocaleString()}</td>
+      <td class="mono" style="color:${dos < 4 ? 'var(--red2)' : 'var(--text)'}; font-size:13px;">${dos === 999 ? '—' : dos.toFixed(1) + ' 天'}</td>
       <td>${badge} <span style="margin-left:8px;">${advice}</span></td>
     `;
     tbody.appendChild(tr);
