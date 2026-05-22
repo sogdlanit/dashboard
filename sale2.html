@@ -20,6 +20,9 @@
     --accent-amber: #ffb800;
     --accent-red: #ff4646;
     --accent-purple: #d946ef;
+    
+    /* 核心基礎字體大小設定，由 JS 動態控制此變數 */
+    --base-font-size: 13px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,20 +31,65 @@ body {
     color: var(--text-primary);
     font-family: 'Noto Sans TC', sans-serif;
     padding: 24px;
+    font-size: var(--base-font-size);
 }
 
-/* 頂部標題 */
+/* 頂部控制面板：整合標題與字體工具 */
 .dashboard-header {
     margin-bottom: 24px;
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 .dashboard-header h1 {
     font-family: 'Orbitron', sans-serif;
-    font-size: 24px;
+    font-size: calc(var(--base-font-size) * 1.8);
     letter-spacing: 2px;
     color: var(--accent-blue);
     text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+/* 字體放大縮小控制按鈕組 */
+.font-control-panel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: 6px;
+}
+.font-lbl {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.font-btn {
+    background: var(--bg-header);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.1s ease;
+}
+.font-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+.font-btn:active {
+    background: var(--border-color);
+}
+#font-size-indicator {
+    font-family: 'Roboto Mono', monospace;
+    color: var(--accent-green);
+    font-size: 12px;
+    min-width: 45px;
+    text-align: center;
 }
 
 /* 上傳區塊 */
@@ -59,8 +107,8 @@ body {
     border-color: var(--accent-blue);
     box-shadow: 0 0 15px rgba(0, 240, 255, 0.1);
 }
-.u-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
-.u-sub { font-family: 'Roboto Mono', monospace; color: var(--text-secondary); font-size: 12px; }
+.u-title { font-size: calc(var(--base-font-size) * 1.1); font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.u-sub { font-family: 'Roboto Mono', monospace; color: var(--text-secondary); font-size: calc(var(--base-font-size) * 0.9); }
 input[type="file"] { display: none; }
 
 /* 儀表板分頁標籤 */
@@ -69,8 +117,8 @@ input[type="file"] { display: none; }
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
-    padding: 12px 24px;
-    font-size: 14px;
+    padding: 10px 20px;
+    font-size: calc(var(--base-font-size) * 1.1);
     font-weight: 700;
     cursor: pointer;
     border-radius: 4px;
@@ -97,7 +145,7 @@ input[type="file"] { display: none; }
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 .card-title {
-    font-size: 15px;
+    font-size: calc(var(--base-font-size) * 1.15);
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 16px;
@@ -114,14 +162,14 @@ input[type="file"] { display: none; }
 .tbl th {
     background: var(--bg-header);
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: calc(var(--base-font-size) * 0.9);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
     padding: 12px;
     border-bottom: 2px solid var(--border-color);
 }
-.tbl td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 13px; vertical-align: middle; }
+.tbl td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: var(--base-font-size); vertical-align: middle; }
 .tbl tr:hover { background: rgba(20, 27, 50, 0.4); }
 
 /* 數據字體與發光標籤 */
@@ -130,7 +178,7 @@ input[type="file"] { display: none; }
     display: inline-block;
     padding: 4px 8px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: calc(var(--base-font-size) * 0.85);
     font-weight: 700;
     letter-spacing: 0.5px;
 }
@@ -151,6 +199,13 @@ input[type="file"] { display: none; }
 
   <div class="dashboard-header">
     <h1>PMC PRODUCTION & SALES INTEGRATED SYSTEM</h1>
+    
+    <div class="font-control-panel">
+        <span class="font-lbl">FONT SIZE:</span>
+        <button class="font-btn" onclick="adjustFontSize(-1)">A -</button>
+        <span id="font-size-indicator" class="mono">13px</span>
+        <button class="font-btn" onclick="adjustFontSize(1)">A +</button>
+    </div>
   </div>
 
   <div class="upload-grid">
@@ -251,7 +306,19 @@ input[type="file"] { display: none; }
 <script>
 let salesVolume = {}; let salesVelocity = {};
 let splitBottle = {}; let splitBox = {}; let splitExpense = {}; let splitPromo = {};
-const DAYS_PASSED = 22; // 5月累計天數基準
+const DAYS_PASSED = 22; 
+
+// 【新技術功能】：字態基礎大小調節函數
+let currentFontSize = 13;
+function adjustFontSize(delta) {
+    currentFontSize += delta;
+    if (currentFontSize < 10) currentFontSize = 10; // 保底限制防止字體縮到消失
+    if (currentFontSize > 24) currentFontSize = 24; // 上限防止排版爆開
+    
+    // 透過 CSS 變數全域改寫網頁大小比例
+    document.documentElement.style.setProperty('--base-font-size', currentFontSize + 'px');
+    document.getElementById('font-size-indicator').textContent = currentFontSize + 'px';
+}
 
 function switchTab(evt, tabId) {
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
