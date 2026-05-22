@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PMC 產銷庫存戰略資訊表</title>
+<title>PMC 產銷動態庫存戰略表</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
@@ -19,25 +19,21 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;padding:20px;}
 
-/* 雙上傳區區塊 */
 .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-.upload-box { background: var(--s1); border: 2px dashed var(--blue); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; }
-.upload-box:hover { background: var(--s2); }
+.upload-box { background: var(--s1); border: 2px dashed var(--blue); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.upload-box:hover { background: var(--s2); border-color: var(--green); }
 .u-title { font-size: 14px; font-weight: 700; color: var(--blue2); margin-bottom: 4px; }
 .u-sub { color: var(--t3); font-size: 11px; }
 input[type="file"] { display: none; }
 
-/* 戰略看板 */
 .card { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
 .card-title { font-size: 14px; font-weight: 700; color: var(--t2); margin-bottom: 15px; border-left: 3px solid var(--blue); padding-left: 8px; }
 
-/* 表格樣式 */
 .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .tbl th { background: var(--s2); padding: 10px; text-align: left; color: var(--t2); font-weight: 700; }
 .tbl td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .mono { font-family: var(--mono); font-weight: 700; }
 
-/* 狀態標籤 */
 .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
 .b-red { background: rgba(239,68,68,0.2); color: var(--red2); }
 .b-amber { background: rgba(245,158,11,0.2); color: var(--amber2); }
@@ -48,41 +44,42 @@ input[type="file"] { display: none; }
 
   <div class="upload-grid">
     <div class="upload-box" onclick="document.getElementById('salesFile').click()">
-      <div class="u-title">第一步：📥 拖入「億看 ERP 銷貨明細.csv」</div>
-      <div class="u-sub" id="lbl-sales">尚未讀取銷速資料</div>
+      <div class="u-title">第一步：📥 拖入「銷售單明細 CSV」</div>
+      <div class="u-sub" id="lbl-sales">尚未讀取本月銷速</div>
       <input type="file" id="salesFile" accept=".csv">
     </div>
     <div class="upload-box" onclick="document.getElementById('stockFile').click()">
-      <div class="u-title">第二步：📥 拖入「廠內成品庫存表.csv」</div>
-      <div class="u-sub" id="lbl-stock">尚未讀取現有庫存</div>
+      <div class="u-title">第二步：📥 拖入「庫存報表 ESZ018R.csv」</div>
+      <div class="u-sub" id="lbl-stock">尚未讀取即時庫存</div>
       <input type="file" id="stockFile" accept=".csv">
     </div>
   </div>
 
   <div class="card">
-    <div class="card-title">🚨 PMC 產銷平衡與斷料動態預警決策看板</div>
+    <div class="card-title">🚨 鮮果多 PMC 產銷動態天數預警與排產決策看板</div>
     <table class="tbl" id="strategy-table">
       <thead>
         <tr>
-          <th>品項名稱</th>
-          <th>當月累計銷量</th>
-          <th>每日平均銷速 (瓶)</th>
-          <th>目前廠內庫存</th>
-          <th>動態安全天數 (DOS)</th>
-          <th>戰略風險判定與建議決策</th>
+          <th>核心品項</th>
+          <th>本月累計銷量</th>
+          <th>日均消耗銷速</th>
+          <th>現有總庫存 (總公司+中廚)</th>
+          <th>動態可用天數 (DOS)</th>
+          <th>戰略風險判定與排產決策建議</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td colspan="6" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳左側「銷售明細」與右側「庫存現況」檔案，系統將自動啟動動態決策推演。</td></tr>
+        <tr><td colspan="6" style="text-align:center; color:var(--t3); padding:30px;">請依序上傳銷售明細與庫存報表，系統將自動修正 Big5 亂碼並執行多檔案隔空配對。</td></tr>
       </tbody>
     </table>
   </div>
 
 <script>
-let globalSalesVelocity = {}; // 記錄各品項的日均銷速
-let globalAccumulatedQty = {}; // 記錄累計銷量
+let salesVolume = {}; 
+let salesVelocity = {}; 
+const DAYS_PASSED = 22; // 當月已過去天數基準
 
-// 監聽銷售檔案
+// 讀取銷售報表
 document.getElementById('salesFile').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -90,15 +87,17 @@ document.getElementById('salesFile').addEventListener('change', function(e) {
   Papa.parse(file, {
     header: false,
     skipEmptyLines: true,
+    encoding: "Big5",
     complete: function(results) {
-      calculateSalesVelocity(results.data);
-      document.getElementById('lbl-sales').textContent = "✅ 銷速解析成功，已鎖定品項耗速";
+      parseSales(results.data);
+      document.getElementById('lbl-sales').textContent = "✅ 銷速鎖定完成";
       document.getElementById('lbl-sales').style.color = "var(--green2)";
+      triggerExecution();
     }
   });
 });
 
-// 監聽庫存檔案
+// 讀取庫存報表
 document.getElementById('stockFile').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -106,96 +105,110 @@ document.getElementById('stockFile').addEventListener('change', function(e) {
   Papa.parse(file, {
     header: false,
     skipEmptyLines: true,
+    encoding: "Big5",
     complete: function(results) {
-      matchStockAndRender(results.data);
-      document.getElementById('lbl-stock').textContent = "✅ 庫存對齊成功，已產出戰略建議";
+      window.rawStockDataset = results.data;
+      document.getElementById('lbl-stock').textContent = "✅ 庫存解碼完成";
       document.getElementById('lbl-stock').style.color = "var(--green2)";
+      triggerExecution();
     }
   });
 });
 
-// 解析銷售速度
-function calculateSalesVelocity(dataset) {
-  globalSalesVelocity = {};
-  globalAccumulatedQty = {};
-  
-  // 預設當月已過去 22 天（實務上可改為動態計算）
-  const daysPassed = 22; 
-
-  dataset.forEach((row, index) => {
-    if (index < 2) return;
-    let pName = row[0] ? String(row[0]).trim() : '';
-    if (!pName || pName === '' || pName.includes('合計') || pName.includes('按品項') || pName.includes('運費') || pName.includes('小卡') || pName.includes('折抵')) return;
-
+function parseSales(dataset) {
+  salesVolume = {};
+  salesVelocity = {};
+  dataset.forEach((row, idx) => {
+    if (idx < 2) return;
+    let name = row[0] ? String(row[0]).trim() : '';
+    if (!name || name.includes('合計') || name.includes('按品項') || name.includes('運費') || name.includes('小卡') || name.includes('折抵')) return;
+    
     let qty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
     if (!isNaN(qty) && qty > 0) {
-      globalAccumulatedQty[pName] = (globalAccumulatedQty[pName] || 0) + qty;
+      // 關鍵字清洗：將銷售名稱標準化（去掉箱、組等字眼便於跟庫存配對）
+      let cleanKey = name.replace(/\[箱\]/g, '').replace(/\(箱\)/g, '').replace(/\[組\]/g, '').replace(/\(組\)/g, '').trim();
+      salesVolume[cleanKey] = (salesVolume[cleanKey] || 0) + qty;
     }
   });
 
-  // 計算日均消耗速度
-  Object.keys(globalAccumulatedQty).forEach(pName => {
-    globalSalesVelocity[pName] = globalAccumulatedQty[pName] / daysPassed;
+  Object.keys(salesVolume).forEach(k => {
+    salesVelocity[k] = salesVolume[k] / DAYS_PASSED;
   });
 }
 
-// 隔空對齊庫存並推演戰略建議
-function matchStockAndRender(stockDataset) {
+function triggerExecution() {
+  if (!salesVelocity || !window.rawStockDataset) return;
+  renderStrategyTable(window.rawStockDataset);
+}
+
+function renderStrategyTable(stockDataset) {
   const tbody = document.querySelector('#strategy-table tbody');
   tbody.innerHTML = '';
 
-  let hasData = false;
+  stockDataset.forEach((row, idx) => {
+    if (idx < 2) return; // 跳過標題與Header
 
-  stockDataset.forEach((row, index) => {
-    // 假設庫存表結構：[0] 品項名稱, [1] 現有庫存量
-    let pName = row[0] ? String(row[0]).trim() : '';
-    if (!pName || pName === '' || pName.includes('品項') || pName.includes('合計')) return;
+    let rawName = row[1] ? String(row[1]).trim() : '';
+    if (!rawName || rawName === '' || rawName.includes('品項名稱')) return;
 
-    let stockQty = parseFloat(String(row[1] || '0').replace(/,/g, ''));
-    if (isNaN(stockQty)) return;
+    // 清洗庫存品項名稱（去掉中括號[箱]以利跟銷售單對齊）
+    let cleanStockName = rawName.replace(/\[箱\]/g, '').replace(/\(箱\)/g, '').replace(/\[組\]/g, '').replace(/\(組\)/g, '').trim();
 
-    hasData = true;
+    // 庫存數值整合：加總「總公司倉庫(第3欄)」與「鮮果多中央廚房(第4欄)」
+    let compStock = parseFloat(String(row[3] || '0').replace(/,/g, ''));
+    let cbStock = parseFloat(String(row[4] || '0').replace(/,/g, ''));
+    let totalStock = (isNaN(compStock) ? 0 : compStock) + (isNaN(cbStock) ? 0 : cbStock);
 
-    // 提取對應的銷售數據
-    let accumQty = globalAccumulatedQty[pName] || 0;
-    let velocity = globalSalesVelocity[pName] || 0;
-    
-    // 計算可用天數 (DOS)
-    let dos = velocity > 0 ? (stockQty / velocity) : 999; 
+    // 配對銷售數據
+    let accumSales = 0;
+    let velocity = 0;
 
-    // 戰略風險判定與決策建議邏輯
-    let statusBadge = '';
-    let recommendation = '';
+    // 模糊比對：檢查銷售清單中是否包含庫存的核心品項名稱
+    Object.keys(salesVelocity).forEach(sKey => {
+      if (cleanStockName.includes(sKey) || sKey.includes(cleanStockName)) {
+        accumSales = globalAccumulatedQty = salesVolume[sKey];
+        velocity = salesVelocity[sKey];
+      }
+    });
 
-    if (dos === 999) {
-      statusBadge = '<span class="badge b-green">呆滯無銷量</span>';
-      recommendation = '⚠️ 該品項本月無出貨紀錄，現有庫存屬於呆滯料，建議業務降價出清，停止排產。';
+    let dos = velocity > 0 ? (totalStock / velocity) : 999;
+
+    let badge = '';
+    let advice = '';
+
+    if (accumSales === 0) {
+      badge = '<span class="badge b-green">無常態銷速</span>';
+      advice = '庫存現狀安全。本月無實質銷售消耗，暫無排產迫切性。';
     } else if (dos < 3) {
-      statusBadge = '<span class="badge b-red">🚨 急需插單</span>';
-      recommendation = `🔥 庫存僅能撐 ${dos.toFixed(1)} 天。產線必須在 24 小時內插單排產，採購應立即確認原料。`;
+      badge = '<span class="badge b-red">🚨 產線極危</span>';
+      advice = `當前庫存僅能支撐 ${dos.toFixed(1)} 天。產線必須在 24 小時內插單排產，否則面臨斷貨！`;
     } else if (dos >= 3 && dos <= 7) {
-      statusBadge = '<span class="badge b-amber">注意進料</span>';
-      recommendation = `正常消耗中。建議安排在下週正常排程，採購需按前置時間（Lead Time）常態進料。`;
+      badge = '<span class="badge b-amber">注意進料</span>';
+      advice = `庫存可撐 ${dos.toFixed(1)} 天。常態消耗，建議納入下週正常排產進度。`;
     } else {
-      statusBadge = '<span class="badge b-green">安全儲備</span>';
-      recommendation = `庫存充足（可撐 ${dos.toFixed(1)} 天）。產線暫不排產，產能調配給其他高風險紅燈品項。`;
+      badge = '<span class="badge b-green">儲備充足</span>';
+      advice = `結構安全（可撐 ${dos.toFixed(1)} 天）。目前無斷貨風險，產能優先調配給紅燈品項。`;
     }
 
     let tr = document.createElement('tr');
     tr.innerHTML = `
-      <td style="font-weight:700;">${pName}</td>
-      <td class="mono">${accumQty.toLocaleString()}</td>
-      <td class="mono" style="color:var(--blue2);">${velocity.toFixed(1)}</td>
-      <td class="mono" style="color:var(--green2);">${stockQty.toLocaleString()}</td>
+      <td style="font-weight:700;">${rawName}</td>
+      <td class="mono">${accumSales.toLocaleString()}</td>
+      <td class="mono" style="color:var(--blue2);">${velocity.toFixed(1)} /天</td>
+      <td class="mono" style="color:var(--green2);">${totalStock.toLocaleString()}</td>
       <td class="mono" style="color:${dos < 3 ? 'var(--red2)' : 'var(--text)'}">${dos === 999 ? '—' : dos.toFixed(1) + ' 天'}</td>
-      <td><div style="display:flex; align-items:center; gap:8px;">${statusBadge} <span>${recommendation}</span></div></td>
+      <td>${badge} <span style="margin-left:8px;">${advice}</span></td>
     `;
     tbody.appendChild(tr);
   });
+}
 
-  if (!hasData) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--red2);">庫存對齊失敗，請確認廠內庫存表的品項名稱是否正確。</td></tr>`;
-  }
+function showNotification(msg) {
+  const el = document.createElement('div');
+  el.style.cssText='position:fixed;bottom:20px;right:20px;background:#10b981;color:#0b0e18;padding:12px 24px;border-radius:8px;font-weight:700;font-size:12px;z-index:999;';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
 }
 </script>
 </body>
