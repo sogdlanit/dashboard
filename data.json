@@ -1,0 +1,8 @@
+{
+  "total_sales": 128500,
+  "total_orders": 342,
+  "active_users": 120,
+  "conversion_rate": "3.5%",
+  "chart_months": ["一月", "二月", "三月", "四月", "五月"],
+  "chart_sales_data": [12000, 19000, 3000, 5000, 20000]
+}
